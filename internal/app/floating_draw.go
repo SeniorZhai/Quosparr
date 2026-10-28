@@ -93,9 +93,6 @@ func floatingStyleRadius(style store.FloatingStyle, h float32) float32 {
 
 // floatingSize is the window content size for the style and view.
 func floatingSize(style store.FloatingStyle, v runway.FloatingView, family string) (float32, float32) {
-	if v.Live {
-		return capsuleSize(v, family)
-	}
 	switch style {
 	case store.FloatingStyleCard:
 		return cardSize(v, family)
@@ -110,10 +107,6 @@ func floatingSize(style store.FloatingStyle, v runway.FloatingView, family strin
 // drawFloating paints the whole window: the card with corners of radius,
 // then the style's content.
 func drawFloating(p *ui.Painter, r ui.Rect, style store.FloatingStyle, v runway.FloatingView, k floatingInk, family string, radius float32) {
-	if v.Live {
-		style = store.FloatingStyleCapsule
-		radius = floatingCornerRadius(style, r.H)
-	}
 	p.Fill(r, k.bg, radius)
 	if radius > 0 {
 		p.Stroke(r, k.border, radius, 1)
@@ -130,19 +123,16 @@ func drawFloating(p *ui.Painter, r ui.Rect, style store.FloatingStyle, v runway.
 	}
 }
 
-// ---- Capsule: one line, the logo, the first window large, the second small.
+// ---- Capsule: the logo and quota values, with the speed below them.
 
 const (
-	capsuleH       = 32
+	capsuleH       = 42
 	capsulePad     = 13
 	capsuleGap     = 21 // between providers, with a hairline in the middle
 	capsuleStatusW = 90
 )
 
 func capsuleParts(item runway.FloatingProvider, family string) (main, second string, mainW, secondW float32) {
-	if item.LiveText != "" {
-		return item.LiveText, "", floatingTextWidth(item.LiveText, floatingFont(14, 650, family)), 0
-	}
 	if len(item.Meters) == 0 {
 		w := min(capsuleStatusW, floatingTextWidth(item.Status, floatingFont(12, 500, family)))
 		return item.Status, "", w, 0
@@ -158,11 +148,11 @@ func capsuleParts(item runway.FloatingProvider, family string) (main, second str
 
 func capsuleItemWidth(item runway.FloatingProvider, family string) float32 {
 	_, second, mw, sw := capsuleParts(item, family)
-	w := 16 + 6 + mw
+	w := mw
 	if second != "" {
 		w += 5 + sw
 	}
-	return w
+	return 22 + max(w, floatingTextWidth(item.LiveText, floatingFont(11, 600, family)))
 }
 
 func capsuleSize(v runway.FloatingView, family string) (float32, float32) {
@@ -186,28 +176,26 @@ func drawCapsule(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk,
 		floatingProviderIcon(p, item.Provider, ui.Rect{X: x, Y: cy - 8, W: 16, H: 16}, k)
 		x += 22
 		main, second, mw, sw := capsuleParts(item, family)
+		w := capsuleItemWidth(item, family) - 22
+		qw := mw
+		if second != "" {
+			qw += 5 + sw
+		}
+		tx, ty := x+(w-qw)/2, cy
 		if item.LiveText != "" {
-			floatingText(p, main, floatingFont(14, 650, family), x, cy-1, 0, k.text)
-			if len(item.Meters) > 0 {
-				bar := ui.Rect{X: x, Y: cy + 10, W: mw, H: 2}
-				p.Fill(bar, k.track, 1)
-				bar.W *= float32(min(100, max(0, item.Meters[0].RemainingPercent))) / 100
-				p.Fill(bar, k.level(item.Meters[0].Health, false), 1)
-			}
-			x += mw
-			continue
+			ty -= 8
+			f := floatingFont(11, 600, family)
+			floatingText(p, item.LiveText, f, x+(w-floatingTextWidth(item.LiveText, f))/2, cy+9, 0, k.text)
 		}
 		if len(item.Meters) == 0 {
-			floatingText(p, main, floatingFont(12, 500, family), x, cy, capsuleStatusW, k.muted)
-			x += mw
-			continue
+			floatingText(p, main, floatingFont(12, 500, family), tx, ty, capsuleStatusW, k.muted)
+		} else {
+			floatingText(p, main, floatingFont(14, 650, family), tx, ty, 0, k.text)
+			if second != "" {
+				floatingText(p, second, floatingFont(11, 500, family), tx+mw+5, ty+1, 0, k.muted)
+			}
 		}
-		floatingText(p, main, floatingFont(14, 650, family), x, cy, 0, k.level(item.Meters[0].Health, true))
-		x += mw
-		if second != "" {
-			floatingText(p, second, floatingFont(11, 500, family), x+5, cy+1, 0, k.muted)
-			x += 5 + sw
-		}
+		x += w
 	}
 }
 
@@ -225,15 +213,19 @@ func cardBlockHeight(item runway.FloatingProvider) float32 {
 	return cardHeaderH + float32(max(1, len(item.Meters)))*cardRowH
 }
 
-func cardSize(v runway.FloatingView, _ string) (float32, float32) {
-	h := float32(2*cardPad) - 4
+func cardSize(v runway.FloatingView, family string) (float32, float32) {
+	w, h := float32(cardW), float32(2*cardPad)-4
 	for i, item := range v.Providers {
 		if i > 0 {
 			h += cardGap
 		}
 		h += cardBlockHeight(item)
+		if item.LiveText != "" {
+			w = max(w, 2*cardPad+20+floatingTextWidth(item.Name, floatingFont(12.5, 600, family))+12+
+				floatingTextWidth(item.LiveText, floatingFont(11.5, 600, family)))
+		}
 	}
-	return cardW, h
+	return w, h
 }
 
 func drawCard(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk, family string) {
@@ -246,7 +238,14 @@ func drawCard(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk, fa
 		}
 		cy := y + cardHeaderH/2
 		floatingProviderIcon(p, item.Provider, ui.Rect{X: x, Y: cy - 7, W: 14, H: 14}, k)
-		floatingText(p, item.Name, floatingFont(12.5, 600, family), x+20, cy, w-20, k.text)
+		nameW := w - 20
+		if item.LiveText != "" {
+			f := floatingFont(11.5, 600, family)
+			sw := floatingTextWidth(item.LiveText, f)
+			floatingText(p, item.LiveText, f, x+w-sw, cy, 0, k.text)
+			nameW -= sw + 12
+		}
+		floatingText(p, item.Name, floatingFont(12.5, 600, family), x+20, cy, nameW, k.text)
 		y += cardHeaderH
 		if len(item.Meters) == 0 {
 			floatingText(p, item.Status, floatingFont(12, 500, family), x, y+cardRowH/2-2, w, k.muted)
@@ -275,15 +274,15 @@ func drawCard(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk, fa
 	}
 }
 
-// ---- Rings: concentric rings per provider, the first window outside.
+// ---- Rings: concentric windows, with the values and speed below them.
 
 const (
-	ringsPad   = 10
-	ringsCellW = 60
-	ringsGap   = 6
-	ringOuter  = 22
-	ringInner  = 15
-	ringsH     = 2*ringsPad + 2*ringOuter + 4 + 6 + 14
+	ringsPad    = 10
+	ringsCellW  = 52
+	ringsGap    = 18
+	ringRadius  = 22
+	ringsH      = 110
+	ringsSpeedH = 20
 )
 
 func ringsCaption(item runway.FloatingProvider) string {
@@ -292,47 +291,62 @@ func ringsCaption(item runway.FloatingProvider) string {
 	}
 	parts := make([]string, len(item.Meters))
 	for i, m := range item.Meters {
-		parts[i] = strconv.Itoa(m.RemainingPercent)
-		if m.ValueText != "" {
-			parts[i] = m.ValueText
-		}
+		parts[i] = percentText(m)
 	}
 	return strings.Join(parts, " · ")
 }
 
-func ringsSize(v runway.FloatingView, _ string) (float32, float32) {
-	n := float32(max(1, len(v.Providers)))
-	return 2*ringsPad + n*ringsCellW + (n-1)*ringsGap, ringsH
+func ringsItemWidth(item runway.FloatingProvider, family string) float32 {
+	w := floatingTextWidth(ringsCaption(item), floatingFont(12, 600, family))
+	if len(item.Meters) == 0 {
+		w = min(capsuleStatusW, w)
+	}
+	return max(ringsCellW, w, floatingTextWidth(item.Name, floatingFont(12, 600, family)),
+		floatingTextWidth(item.LiveText, floatingFont(12, 650, family)))
+}
+
+func ringsSize(v runway.FloatingView, family string) (float32, float32) {
+	w, h := float32(2*ringsPad), float32(ringsH)
+	for i, item := range v.Providers {
+		if i > 0 {
+			w += ringsGap
+		}
+		w += ringsItemWidth(item, family)
+		if item.LiveText != "" {
+			h = ringsH + ringsSpeedH
+		}
+	}
+	return max(w, 2*ringsPad+ringsCellW), h
 }
 
 func drawRings(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk, family string) {
 	x := r.X + ringsPad
 	for _, item := range v.Providers {
-		cx, cy := x+ringsCellW/2, r.Y+ringsPad+3+ringOuter
-		for i, radius := range []float32{ringOuter, ringInner} {
-			width := float32(4.5)
-			if i == 1 {
-				width = 3.5
+		w := ringsItemWidth(item, family)
+		cx, cy := x+w/2, r.Y+58
+		f := floatingFont(12, 600, family)
+		floatingText(p, item.Name, f, cx-floatingTextWidth(item.Name, f)/2, r.Y+ringsPad+8, 0, k.text)
+		for i := range max(1, len(item.Meters)) {
+			radius, stroke := float32(ringRadius), float32(4)
+			if i > 0 {
+				radius, stroke = 15, 3.5
 			}
-			p.StrokePath((&ui.Path{}).Circle(cx, cy, radius), width, k.track)
+			p.StrokePath((&ui.Path{}).Circle(cx, cy, radius), stroke, k.track)
 			if i < len(item.Meters) {
 				m := item.Meters[i]
-				ringArc(p, cx, cy, radius, width, float64(min(100, max(0, m.RemainingPercent)))/100, k.level(m.Health, false))
+				ringArc(p, cx, cy, radius, stroke, float64(min(100, max(0, m.RemainingPercent)))/100, k.level(m.Health, false))
 			}
 		}
-		floatingProviderIcon(p, item.Provider, ui.Rect{X: cx - 7, Y: cy - 7, W: 14, H: 14}, k)
+		floatingProviderIcon(p, item.Provider, ui.Rect{X: cx - 8, Y: cy - 8, W: 16, H: 16}, k)
 		caption := ringsCaption(item)
-		f := floatingFont(11.5, 600, family)
+		cw, color := floatingTextWidth(caption, f), k.text
 		if len(item.Meters) == 0 {
-			f.Weight = 500
+			cw, color = min(capsuleStatusW, cw), k.muted
 		}
-		cw := min(ringsCellW, floatingTextWidth(caption, f))
-		col := k.text
-		if len(item.Meters) == 0 {
-			col = k.muted
-		}
-		floatingText(p, caption, f, cx-cw/2, r.Y+r.H-ringsPad-7, ringsCellW, col)
-		x += ringsCellW + ringsGap
+		floatingText(p, caption, f, cx-cw/2, r.Y+91, cw, color)
+		f = floatingFont(12, 650, family)
+		floatingText(p, item.LiveText, f, cx-floatingTextWidth(item.LiveText, f)/2, r.Y+ringsH, 0, k.text)
+		x += w + ringsGap
 	}
 }
 
@@ -367,17 +381,28 @@ const (
 
 func batterySize(v runway.FloatingView, family string) (float32, float32) {
 	w := float32(0)
+	h := float32(max(1, len(v.Providers))*batteryRowH + 2*batteryPad - 6)
 	for _, item := range v.Providers {
 		row := float32(16 + 10)
 		if len(item.Meters) == 0 {
 			row += min(capsuleStatusW, floatingTextWidth(item.Status, floatingFont(12, 500, family)))
 		} else {
-			row += float32(len(item.Meters))*(batteryW+4) + float32(len(item.Meters)-1)*batteryGap
+			for _, m := range item.Meters {
+				row += batteryMeterWidth(m, family) + 4
+			}
+			row += float32(len(item.Meters)-1) * batteryGap
 		}
 		w = max(w, row)
+		if item.LiveText != "" {
+			w = max(w, 26+floatingTextWidth(item.LiveText, floatingFont(11, 600, family)))
+			h += 16
+		}
 	}
-	n := float32(max(1, len(v.Providers)))
-	return max(w+2*batteryPad, 80), n*batteryRowH + 2*batteryPad - 6
+	return max(w+2*batteryPad, 80), h
+}
+
+func batteryMeterWidth(m runway.FloatingMeter, family string) float32 {
+	return max(batteryW, floatingTextWidth(percentText(m), floatingFont(11, 650, family))+10)
 }
 
 func drawBatteries(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk, family string) {
@@ -394,10 +419,17 @@ func drawBatteries(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingIn
 			if i > 0 {
 				x += batteryGap
 			}
-			drawFloatingBattery(p, ui.Rect{X: x, Y: cy - batteryH/2, W: batteryW, H: batteryH}, m, k, family)
-			x += batteryW + 4
+			w := batteryMeterWidth(m, family)
+			drawFloatingBattery(p, ui.Rect{X: x, Y: cy - batteryH/2, W: w, H: batteryH}, m, k, family)
+			x += w + 4
 		}
 		y += batteryRowH
+		if item.LiveText != "" {
+			f := floatingFont(11, 600, family)
+			w := r.W - 2*batteryPad - 26
+			floatingText(p, item.LiveText, f, r.X+batteryPad+26+(w-floatingTextWidth(item.LiveText, f))/2, y+5, 0, k.text)
+			y += 16
+		}
 	}
 }
 
@@ -425,20 +457,19 @@ func drawFloatingBattery(p *ui.Painter, body ui.Rect, m runway.FloatingMeter, k 
 func floatingTooltip(v runway.FloatingView) string {
 	lines := make([]string, 0, len(v.Providers))
 	for _, item := range v.Providers {
+		parts := make([]string, 0, len(item.Meters)+1)
 		if item.LiveText != "" {
-			lines = append(lines, item.Name+": "+item.LiveText)
-			continue
+			parts = append(parts, item.LiveText)
 		}
-		if len(item.Meters) == 0 {
-			lines = append(lines, item.Name+": "+item.Status)
-			continue
+		if len(item.Meters) == 0 && item.Status != "" {
+			parts = append(parts, item.Status)
 		}
-		parts := make([]string, len(item.Meters))
-		for i, m := range item.Meters {
-			parts[i] = m.Label + " " + percentText(m)
+		for _, m := range item.Meters {
+			part := strings.TrimSpace(m.Label + " " + percentText(m))
 			if m.Reset != "" {
-				parts[i] += " (" + m.Reset + ")"
+				part += " (" + m.Reset + ")"
 			}
+			parts = append(parts, part)
 		}
 		lines = append(lines, item.Name+": "+strings.Join(parts, " · "))
 	}

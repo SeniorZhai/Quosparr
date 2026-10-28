@@ -42,7 +42,7 @@ func TestClaudeSSHRefreshAndSourceSwitch(t *testing.T) {
 		t.Fatal("manual refresh did not fetch")
 	}
 	view := runway.BuildStatusBar(l10n.New(l10n.English), runway.StatusInputs{Prefs: p, Provider: store.ProviderClaude, Claude: st})
-	if !strings.Contains(view.Tooltip, "SSH") || len(view.Components) != 1 || view.Components[0].Cells[0].Remaining != 75 {
+	if !strings.Contains(view.Tooltip, "Claude:") || len(view.Components) != 1 || view.Components[0].Cells[0].Remaining != 75 {
 		t.Fatal("remote quota did not reach status bar")
 	}
 	g.sshFetch = func(context.Context, string) (claude.UsageSnapshot, error) {

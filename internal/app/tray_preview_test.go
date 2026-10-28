@@ -30,6 +30,58 @@ func TestTrayStylePreview(t *testing.T) {
 	}
 }
 
+func TestTrayRingSpeedPreview(t *testing.T) {
+	dir := os.Getenv("RUNWAY_TRAY_QA_DIR")
+	if dir == "" {
+		t.Skip("set RUNWAY_TRAY_QA_DIR to export ring speed previews")
+	}
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, lang := range []l10n.Language{l10n.English, l10n.SimplifiedChinese} {
+		for _, values := range []bool{false, true} {
+			for _, live := range []bool{false, true} {
+				prefs := store.DefaultPreferences()
+				prefs.StatusBarDisplayStyle = store.StatusBarStyleRings
+				prefs.StatusBar.RingValues = values
+				prefs.SetStatusBarGroups([][]store.Provider{{store.ProviderCodex}, {store.ProviderClaude}, {store.ProviderGrok}})
+				in := trayTestInputs(prefs)
+				name := "rings-idle-"
+				if live {
+					in.Live = []runway.LivePart{{Provider: store.ProviderClaude, Text: "125.5 tok/s"}, {Provider: store.ProviderGrok, Text: "46.3 tok/s"}}
+					name = "rings-live-"
+				}
+				if values {
+					name += "values-"
+				}
+				r := TrayFromStatus(runway.BuildStatusBar(l10n.New(lang), in))
+				writeTrayLivePreview(t, r, filepath.Join(dir, name+string(lang)+".png"))
+			}
+		}
+	}
+}
+
+func writeTrayLivePreview(t *testing.T, r TrayRender, path string) {
+	t.Helper()
+	width := decodeTrayPreview(t, r, true, false).Bounds().Dx()
+	canvas := image.NewNRGBA(image.Rect(0, 0, width, 100))
+	for i, light := range []bool{true, false} {
+		bg := color.NRGBA{236, 236, 238, 255}
+		if !light {
+			bg = color.NRGBA{32, 32, 35, 255}
+		}
+		draw.Draw(canvas, image.Rect(0, i*50, width, (i+1)*50), &image.Uniform{C: bg}, image.Point{}, draw.Src)
+		drawTrayLayers(canvas, r, light, image.Pt(0, i*50+3))
+	}
+	var data bytes.Buffer
+	if err := png.Encode(&data, canvas); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data.Bytes(), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // trayPreviewVariant is one row of the preview sheet.
 type trayPreviewVariant struct {
 	name      string

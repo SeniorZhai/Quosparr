@@ -581,6 +581,7 @@ const (
 	KeyStatusBarStyle                                      Key = "statusBarStyle"
 	KeyStatusBarText                                       Key = "statusBarText"
 	KeyStatusUsed                                          Key = "statusUsed"
+	KeyLiveSpeedPending                                    Key = "liveSpeedPending"
 	KeyStatusWait                                          Key = "statusWait"
 	KeyStatusUnknown                                       Key = "statusUnknown"
 	KeyStartDate                                           Key = "startDate"
@@ -1228,6 +1229,7 @@ var allKeys = []Key{
 	KeyStatusBarStyle,
 	KeyStatusBarText,
 	KeyStatusUsed,
+	KeyLiveSpeedPending,
 	KeyStatusWait,
 	KeyStatusUnknown,
 	KeyStartDate,
@@ -1876,6 +1878,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "Menu bar style",
 		KeyStatusBarText:                                 "Progress text",
 		KeyStatusUsed:                                    "used",
+		KeyLiveSpeedPending:                              "Measuring…",
 		KeyStatusWait:                                    "wait",
 		KeyStatusUnknown:                                 "unknown",
 		KeyStartDate:                                     "Start date",
@@ -2521,6 +2524,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "状态栏样式",
 		KeyStatusBarText:                                 "进度文本",
 		KeyStatusUsed:                                    "已使用",
+		KeyLiveSpeedPending:                              "测速中…",
 		KeyStatusWait:                                    "等",
 		KeyStatusUnknown:                                 "未知",
 		KeyStartDate:                                     "开始日期",
@@ -3161,6 +3165,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "狀態欄樣式",
 		KeyStatusBarText:                                 "進度文本",
 		KeyStatusUsed:                                    "已使用",
+		KeyLiveSpeedPending:                              "測速中…",
 		KeyStatusWait:                                    "等",
 		KeyStatusUnknown:                                 "未知",
 		KeyStartDate:                                     "開始日期",
@@ -3806,6 +3811,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "메뉴 막대 스타일",
 		KeyStatusBarText:                                 "진행 텍스트",
 		KeyStatusUsed:                                    "사용됨",
+		KeyLiveSpeedPending:                              "속도 측정 중…",
 		KeyStatusWait:                                    "대기",
 		KeyStatusUnknown:                                 "알 수 없음",
 		KeyStartDate:                                     "시작일",
@@ -4451,6 +4457,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "メニューバーのスタイル",
 		KeyStatusBarText:                                 "進捗テキスト",
 		KeyStatusUsed:                                    "使用済み",
+		KeyLiveSpeedPending:                              "速度計測中…",
 		KeyStatusWait:                                    "待機",
 		KeyStatusUnknown:                                 "不明",
 		KeyStartDate:                                     "開始日",
@@ -5096,6 +5103,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "Стиль строки меню",
 		KeyStatusBarText:                                 "Текст прогресса",
 		KeyStatusUsed:                                    "использовано",
+		KeyLiveSpeedPending:                              "Замер скорости…",
 		KeyStatusWait:                                    "ожидание",
 		KeyStatusUnknown:                                 "неизвестно",
 		KeyStartDate:                                     "Дата начала",
@@ -5741,6 +5749,7 @@ var tables = map[Language]map[Key]string{
 		KeyStatusBarStyle:                                "Style de la barre de menus",
 		KeyStatusBarText:                                 "Texte de progression",
 		KeyStatusUsed:                                    "utilisé",
+		KeyLiveSpeedPending:                              "Mesure en cours…",
 		KeyStatusWait:                                    "attente",
 		KeyStatusUnknown:                                 "inconnu",
 		KeyStartDate:                                     "Date de début",

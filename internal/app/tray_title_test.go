@@ -2,7 +2,10 @@ package app
 
 import (
 	"bytes"
+	"image"
 	"image/png"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 	"time"
@@ -154,6 +157,103 @@ func TestTrayRingValuesKeepClearOfTheRing(t *testing.T) {
 	}
 	if big := ringTextSize("100", radius); big >= two {
 		t.Errorf("three digits are drawn at %v, two at %v", big, two)
+	}
+}
+
+func TestTrayRingRatesStayBelowHorizontalPercentages(t *testing.T) {
+	r := TrayFromStatus(trayTestStatus(store.StatusBarStyleRings, nil))
+	r.Components[0].LiveText = "125.5 tok/s"
+	base := decodeTrayPreview(t, r, true, false)
+	changedPixels := func(changed image.Image) image.Rectangle {
+		t.Helper()
+		if changed.Bounds() != base.Bounds() {
+			t.Fatalf("same-length text changed dimensions: %v vs %v", changed.Bounds(), base.Bounds())
+		}
+		var bounds image.Rectangle
+		for y := 0; y < base.Bounds().Dy(); y++ {
+			for x := 0; x < base.Bounds().Dx(); x++ {
+				if base.At(x, y) != changed.At(x, y) {
+					bounds = bounds.Union(image.Rect(x, y, x+1, y+1))
+				}
+			}
+		}
+		if bounds.Empty() {
+			t.Fatal("changed text did not redraw")
+		}
+		return bounds
+	}
+	r.Components[0].Cells[0].Percent = "20%"
+	first := changedPixels(decodeTrayPreview(t, r, true, false))
+	r.Components[0].Cells[0].Percent = "80%"
+	r.Components[0].Cells[1].Percent = "65%"
+	second := changedPixels(decodeTrayPreview(t, r, true, false))
+	r.Components[0].Cells[1].Percent = "35%"
+	r.Components[0].LiveText = "425.5 tok/s"
+	speed := changedPixels(decodeTrayPreview(t, r, true, false))
+	if first.Max.X > second.Min.X || first.Max.Y > 22 || second.Max.Y > 22 || speed.Min.Y < 22 {
+		t.Fatalf("quota must be side by side above speed: %v, %v, speed %v", first, second, speed)
+	}
+	r.RingValues = true
+	withValues := decodeTrayPreview(t, r, true, false)
+	r.RingValues = false
+	withoutValues := decodeTrayPreview(t, r, true, false)
+	if withValues.Bounds() != withoutValues.Bounds() {
+		t.Fatal("live ring values must leave room for the speed row")
+	}
+}
+
+func TestTrayLiveSpeedsPreserveEveryLayout(t *testing.T) {
+	dir := os.Getenv("RUNWAY_TRAY_QA_DIR")
+	if dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, variant := range []string{"single", "dual", "stacked", "empty", "vertical"} {
+		for _, style := range store.StatusBarStyles() {
+			if variant == "vertical" && style != store.StatusBarStyleBattery {
+				continue
+			}
+			for _, lang := range []l10n.Language{l10n.English, l10n.SimplifiedChinese} {
+				prefs := store.DefaultPreferences()
+				prefs.StatusBarDisplayStyle = style
+				prefs.StatusBar.Window = store.StatusBarWindowAuto
+				prefs.SetStatusBarGroups([][]store.Provider{{store.ProviderClaude}, {store.ProviderCodex}, {store.ProviderGrok}})
+				if variant == "single" {
+					prefs.StatusBar.Window = store.StatusBarWindowFiveHour
+				}
+				if variant == "stacked" {
+					prefs.SetStatusBarGroups([][]store.Provider{{store.ProviderClaude, store.ProviderCodex}, {store.ProviderGrok}})
+				}
+				if variant == "vertical" {
+					prefs.StatusBar.Window = store.StatusBarWindowFiveHour
+					prefs.StatusBar.Battery = store.BatteryVertical
+				}
+				in := trayTestInputs(prefs)
+				if variant == "empty" {
+					in.Claude.Meters = nil
+				}
+				in.Live = []runway.LivePart{{Provider: store.ProviderClaude, Text: "125.5 tok/s"}, {Provider: store.ProviderCodex, Text: "46.3 tok/s"}}
+				r := TrayFromStatus(runway.BuildStatusBar(l10n.New(lang), in))
+				data, err := TrayImage(r, true, false)
+				if err != nil || r.Style != style {
+					t.Fatalf("%s %s lost its style: %v", style, variant, err)
+				}
+				in.Live[0].Text = "1234567890.5 tok/s"
+				long := TrayFromStatus(runway.BuildStatusBar(l10n.New(lang), in))
+				if trayContentWidth(long) <= trayContentWidth(r) {
+					t.Fatalf("%s %s clipped the longer speed", style, variant)
+				}
+				in.Live = nil
+				idle, err := TrayImage(TrayFromStatus(runway.BuildStatusBar(l10n.New(lang), in)), true, false)
+				if err != nil || bytes.Equal(idle, data) {
+					t.Fatalf("%s %s did not draw its speed: %v", style, variant, err)
+				}
+				if dir != "" {
+					writeTrayLivePreview(t, r, filepath.Join(dir, string(style)+"-"+variant+"-live-"+string(lang)+".png"))
+				}
+			}
+		}
 	}
 }
 

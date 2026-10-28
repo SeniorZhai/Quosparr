@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -53,6 +54,51 @@ func TestReadIgnoresAFinishedSession(t *testing.T) {
 	}
 	if got := OutputRate(now, responses, flights); got != 0 {
 		t.Fatalf("finished session rate = %v", got)
+	}
+}
+
+func TestReadGrokPendingWithoutCompletedUsage(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	start := `{"ts":"` + now.Add(-4*time.Second).Format(time.RFC3339Nano) + `","type":"turn_started"}` + "\n"
+	stamp := now.Add(-time.Second).Format(time.RFC3339Nano)
+	activity := `{"ts":"` + stamp + `","type":"phase_changed","phase":"streaming_text"}` + "\n"
+	ended := `{"ts":"` + stamp + `","type":"turn_ended"}` + "\n"
+	cleanup := `{"ts":"` + stamp + `","type":"tool_completed"}` + "\n" +
+		`{"ts":"` + stamp + `","type":"mcp_init_completed"}` + "\n"
+	for _, tc := range []struct {
+		name, events string
+		pending      bool
+	}{
+		{"first turn", start + activity, true},
+		{"truncated text", start + strings.Repeat("{}\n", tailBytes/3+1) + activity, true},
+		{"truncated reasoning", strings.ReplaceAll(activity, "streaming_text", "streaming_reasoning"), true},
+		{"truncated first token", `{"ts":"` + stamp + `","type":"first_token"}` + "\n", true},
+		{"ended then cleanup", activity + ended + cleanup, false},
+		{"cleanup only", cleanup, false},
+		{"stale activity", strings.ReplaceAll(activity, stamp, now.Add(-flightFresh-time.Second).Format(time.RFC3339Nano)), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			dir := filepath.Join(home, "sessions", "cwd", "sess")
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "events.jsonl"), []byte(tc.events), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			responses, flights := Read(now, Homes{Grok: home})
+			parts := Parts(now, responses, flights)
+			if len(responses) != 0 {
+				t.Fatalf("made up %d usage records", len(responses))
+			}
+			if tc.pending {
+				if len(flights) != 1 || len(parts) != 1 || parts[0].Source != "grok" || !parts[0].Pending || parts[0].Text != "" {
+					t.Fatalf("flights = %d, parts = %+v", len(flights), parts)
+				}
+			} else if len(flights) != 0 || len(parts) != 0 {
+				t.Fatalf("inactive session: flights = %d, parts = %+v", len(flights), parts)
+			}
+		})
 	}
 }
 

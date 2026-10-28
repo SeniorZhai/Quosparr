@@ -41,24 +41,18 @@ type FloatingView struct {
 
 // BuildFloating computes the floating window content for the preferences.
 func BuildFloating(lc l10n.Localizer, in StatusInputs) FloatingView {
-	var v FloatingView
-	if live, ok := liveStatus(lc, in); ok {
-		v.Live = true
-		for _, component := range live.Components {
-			cell := component.Cells[0]
-			item := FloatingProvider{Provider: component.Provider, Name: lc.Text(providerStatusKey(component.Provider)), LiveText: cell.MeterText}
-			if cell.Gauge {
-				item.Meters = []FloatingMeter{{RemainingPercent: cell.Remaining, Health: cell.Health}}
-			}
-			v.Providers = append(v.Providers, item)
+	live := liveParts(lc, in.Live)
+	v := FloatingView{Live: len(live) > 0}
+	providers := in.Prefs.FloatingSelection()
+	liveText := make(map[store.Provider]string, len(live))
+	for _, part := range live {
+		if !slices.Contains(providers, part.Provider) {
+			providers = append(providers, part.Provider)
 		}
-		return v
+		liveText[part.Provider] = part.Text
 	}
-	for _, p := range in.Prefs.FloatingSelection() {
-		item := FloatingProvider{Provider: p, Name: lc.Text(providerStatusKey(p))}
-		if p == store.ProviderClaude && in.Claude.RemoteUsage {
-			item.Name += " (SSH)"
-		}
+	for _, p := range providers {
+		item := FloatingProvider{Provider: p, Name: lc.Text(providerStatusKey(p)), LiveText: liveText[p]}
 		for _, m := range floatingMeters(metersOf(in, p), preferredOf(p)) {
 			fm := FloatingMeter{Label: meterTitle(lc, m), RemainingPercent: m.RemainingPercent, Health: m.Health, ValueText: m.ValueText}
 			if m.HasReset() {

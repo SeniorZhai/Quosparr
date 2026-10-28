@@ -26,20 +26,28 @@ func Format(rate float64) (string, bool) {
 
 // Part is one source that has a live rate.
 type Part struct {
-	Source string
-	Text   string
+	Source  string
+	Text    string
+	Pending bool
 }
 
 // Parts is the live rate of each source that is producing tokens, in a
-// stable order. A source below the display threshold is left out.
+// stable order. Grok's first turn stays pending until usage is available.
 func Parts(now time.Time, responses []Response, flights []Flight) []Part {
 	var out []Part
 	for _, source := range []string{"codex", "claude", "grok"} {
-		text, on := Format(OutputRate(now, bySource(responses, source), flightsBySource(flights, source)))
-		if !on {
-			continue
+		active := flightsBySource(flights, source)
+		text, on := Format(OutputRate(now, bySource(responses, source), active))
+		if on {
+			out = append(out, Part{Source: source, Text: text})
+		} else if source == "grok" {
+			for _, f := range active {
+				if !f.Start.IsZero() && f.Start.Before(now) && !f.Last.IsZero() && !f.Last.After(now) && now.Sub(f.Last) <= flightFresh {
+					out = append(out, Part{Source: source, Pending: true})
+					break
+				}
+			}
 		}
-		out = append(out, Part{Source: source, Text: text})
 	}
 	return out
 }

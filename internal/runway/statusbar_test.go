@@ -147,59 +147,111 @@ func TestStatusBarRingTextLeavesBalancesOut(t *testing.T) {
 	}
 }
 
-func TestStatusBarLiveSpeedReplacesEveryStyle(t *testing.T) {
-	five := testMeter("5小时", 20, FiveHourMinutes, SourceStandard)
-	base := store.DefaultPreferences()
-	base.StatusBar.HideIcons = true
-	in := StatusInputs{Prefs: base, Provider: store.ProviderCodex, CodexMeters: []Meter{five}, Now: time.Now(),
-		Live: []LivePart{{Provider: store.ProviderCodex, Text: "42 tok/s"}}}
-	for _, st := range store.StatusBarStyles() {
-		in.Prefs.StatusBarDisplayStyle = st
-		v := BuildStatusBar(zh, in)
-		if v.Style != store.StatusBarStyleText || v.HideIcons || len(v.Components) != 1 || len(v.Components[0].Cells) != 1 {
-			t.Fatalf("%s view = %+v", st, v)
-		}
-		if v.Components[0].Provider != store.ProviderCodex {
-			t.Fatalf("%s provider = %s", st, v.Components[0].Provider)
-		}
-		c := v.Components[0].Cells[0]
-		if c.Provider != store.ProviderCodex || c.Percent != "42 tok/s" || c.Countdown != "42 tok/s" || c.MeterText != "42 tok/s" || c.BatteryText != "42 tok/s" {
-			t.Fatalf("%s cell = %+v", st, c)
-		}
-		if !c.Gauge || c.Remaining != 80 || c.Health != five.Health {
-			t.Fatalf("%s gauge = %+v", st, c)
-		}
-		if v.Tooltip != "Quosparr\nCodex 42 tok/s" {
-			t.Fatalf("%s tooltip = %q", st, v.Tooltip)
+func TestStatusBarLiveSpeedKeepsEveryStyleAndQuota(t *testing.T) {
+	five := testMeter("5-hour", 20, FiveHourMinutes, SourceStandard)
+	weekly := testMeter("Weekly", 60, WeeklyMinutes, SourceStandard)
+	for _, style := range store.StatusBarStyles() {
+		for _, combined := range []bool{false, true} {
+			p := store.DefaultPreferences()
+			p.StatusBarDisplayStyle = style
+			p.StatusBar.HideIcons = true
+			p.StatusBar.Window = store.StatusBarWindowAuto
+			if combined {
+				p.SetStatusBarGroups([][]store.Provider{{store.ProviderClaude, store.ProviderCodex}})
+			} else {
+				p.SetStatusBarGroups([][]store.Provider{{store.ProviderClaude}, {store.ProviderCodex}})
+			}
+			in := StatusInputs{Prefs: p, CodexMeters: []Meter{five, weekly}, Now: time.Now(),
+				Claude: ClaudeState{Availability: ClaudeReady, Meters: []Meter{weekly, five}}}
+			idle := BuildStatusBar(zh, in)
+			in.Live = []LivePart{{Provider: store.ProviderClaude, Text: "1250.5 tok/s"}, {Provider: store.ProviderGrok, Text: "18 tok/s"}}
+			v := BuildStatusBar(zh, in)
+			if v.Style != style || !v.HideIcons || len(v.Components) != len(idle.Components)+1 {
+				t.Fatalf("%s combined=%v layout changed: %+v", style, combined, v)
+			}
+			for i, original := range idle.Components {
+				comp := v.Components[i]
+				if comp.Provider != original.Provider || len(comp.Cells) != len(original.Cells) {
+					t.Fatalf("%s grouping changed: %+v", style, comp)
+				}
+				for j, want := range original.Cells {
+					if want.Provider == store.ProviderClaude {
+						want.LiveText = "1250.5 tok/s"
+					}
+					if comp.Cells[j] != want {
+						t.Fatalf("%s quota changed: %+v vs %+v", style, comp.Cells[j], want)
+					}
+				}
+			}
+			last := v.Components[len(v.Components)-1]
+			if last.Provider != store.ProviderGrok || !last.Cells[0].Empty || last.Cells[0].LiveText != "18 tok/s" {
+				t.Fatalf("%s missing-quota speed lost: %+v", style, last)
+			}
+			if !strings.Contains(v.Tooltip, "1250.5 tok/s") || !strings.Contains(v.Tooltip, "80%") || !strings.Contains(v.Tooltip, "18 tok/s") {
+				t.Fatalf("%s tooltip lost quota or rate: %s", style, v.Tooltip)
+			}
+			in.Live = []LivePart{{Provider: store.ProviderClaude}}
+			if got := BuildStatusBar(zh, in); !reflect.DeepEqual(got, idle) {
+				t.Fatalf("%s empty live value did not restore idle: %+v", style, got)
+			}
 		}
 	}
+}
+
+func TestStatusBarRingsKeepQuotasAndIdleProvidersWhileLive(t *testing.T) {
+	five := testMeter("5-hour", 20, FiveHourMinutes, SourceStandard)
+	weekly := testMeter("Weekly", 60, WeeklyMinutes, SourceStandard)
+	p := store.DefaultPreferences()
+	p.StatusBarDisplayStyle = store.StatusBarStyleRings
+	p.StatusBar.HideIcons, p.StatusBar.RingValues = true, true
+	p.SetStatusBarGroups([][]store.Provider{{store.ProviderClaude}, {store.ProviderCodex}, {store.ProviderKimi}})
+	in := StatusInputs{Prefs: p, CodexMeters: []Meter{five, weekly}, Now: time.Now(),
+		Claude: ClaudeState{Availability: ClaudeReady, Meters: []Meter{weekly, five}, RemoteUsage: true}}
+	idle := BuildStatusBar(zh, in)
 	in.Live = []LivePart{
-		{Provider: store.ProviderCodex, Text: "42 tok/s"},
+		{Provider: store.ProviderClaude, Text: "42 tok/s"},
 		{Provider: store.ProviderGrok, Text: "18 tok/s"},
+		{Provider: store.ProviderClaude, Text: "43 tok/s"},
+		{Provider: store.ProviderCodex},
+		{Provider: store.ProviderKimi, Text: "99 tok/s"},
+		{Provider: "invalid", Text: "99 tok/s"},
 	}
 	v := BuildStatusBar(zh, in)
-	if v.HideIcons || len(v.Components) != 2 || v.Components[0].Provider != store.ProviderCodex || v.Components[1].Provider != store.ProviderGrok {
-		t.Fatalf("side by side = %+v", v.Components)
+	if v.Style != store.StatusBarStyleRings || !v.HideIcons || !v.RingValues || len(v.Components) != 4 {
+		t.Fatalf("ring preferences/providers lost: %+v", v)
 	}
-	if v.Components[0].Cells[0].Percent != "42 tok/s" || v.Components[1].Cells[0].Percent != "18 tok/s" {
-		t.Fatalf("rates = %+v", v.Components)
+	for i, want := range []store.Provider{store.ProviderClaude, store.ProviderCodex, store.ProviderKimi, store.ProviderGrok} {
+		if v.Components[i].Provider != want {
+			t.Fatalf("provider order changed: %+v", v.Components)
+		}
+		if i < len(idle.Components) {
+			for j, wantCell := range idle.Components[i].Cells {
+				wantCell.LiveText = v.Components[i].LiveText
+				if v.Components[i].Cells[j] != wantCell {
+					t.Fatalf("quota changed while live: %+v", v.Components[i])
+				}
+			}
+		}
 	}
-	if len(v.Components[0].Cells) != 1 || len(v.Components[1].Cells) != 1 {
-		t.Fatalf("stacked cells = %+v", v.Components)
+	if v.Components[0].LiveText != "43 tok/s" || v.Components[1].LiveText != "" || v.Components[2].LiveText != "" || v.Components[3].LiveText != "18 tok/s" {
+		t.Fatalf("rates not assigned to their providers: %+v", v.Components)
 	}
-	if v.Components[1].Cells[0].Gauge {
-		t.Fatalf("grok without a reading has a gauge: %+v", v.Components[1].Cells[0])
+	if len(v.Components[0].Cells) != 2 || !v.Components[3].Cells[0].Empty {
+		t.Fatalf("dual quota or missing-quota state lost: %+v", v.Components)
 	}
+	for _, want := range []string{"Claude:", "5小时 80%", "每周 40%", "43 tok/s", "Grok:", "18 tok/s"} {
+		if !strings.Contains(v.Tooltip, want) {
+			t.Errorf("tooltip %q misses %q", v.Tooltip, want)
+		}
+	}
+	in.Prefs.StatusBar.Window = store.StatusBarWindowWeekly
+	if c := BuildStatusBar(zh, in).Components[0]; len(c.Cells) != 1 || c.Cells[0].Percent != "40%" || c.LiveText != "43 tok/s" {
+		t.Fatalf("explicit quota window ignored while live: %+v", c)
+	}
+	in.Prefs = p
 	in.Live = nil
-	in.Prefs.StatusBarDisplayStyle = store.StatusBarStyleMeters
-	v = BuildStatusBar(zh, in)
-	if v.Style != store.StatusBarStyleMeters || len(v.Components) != 1 || v.Components[0].Cells[0].Percent != "80%" {
-		t.Fatalf("quota = %+v", v)
-	}
-	in.Live = []LivePart{{Provider: store.ProviderCodex, Text: ""}}
-	v = BuildStatusBar(zh, in)
-	if v.Components[0].Cells[0].Percent != "80%" {
-		t.Fatalf("blank speed hid the quota: %+v", v.Components[0].Cells[0])
+	if got := BuildStatusBar(zh, in); !reflect.DeepEqual(got, idle) {
+		t.Fatalf("idle layout did not return: %+v", got)
 	}
 }
 
@@ -220,13 +272,13 @@ func TestPublishPutsLiveSpeedOnTheStatusBar(t *testing.T) {
 	s.publish()
 	snap := s.Snapshot()
 	bar := snap.StatusBar
-	if bar.HideIcons || bar.Style != store.StatusBarStyleText || len(bar.Components) != 2 {
+	if bar.HideIcons || bar.Style != store.StatusBarStyleMeters || len(bar.Components) != 3 {
 		t.Fatalf("live = %+v", bar)
 	}
-	if bar.Components[0].Provider != store.ProviderClaude || bar.Components[1].Provider != store.ProviderGrok {
+	if bar.Components[0].Provider != store.ProviderCodex || bar.Components[1].Provider != store.ProviderClaude || bar.Components[2].Provider != store.ProviderGrok {
 		t.Fatalf("providers = %+v", bar.Components)
 	}
-	if !snap.Floating.Live || len(snap.Floating.Providers) != 2 || snap.Floating.Providers[0].Provider != store.ProviderClaude || snap.Floating.Providers[1].Provider != store.ProviderGrok || snap.Floating.Providers[0].LiveText != "42.4 tok/s" {
+	if !snap.Floating.Live || len(snap.Floating.Providers) != 3 || snap.Floating.Providers[0].Provider != store.ProviderCodex || snap.Floating.Providers[1].Provider != store.ProviderClaude || snap.Floating.Providers[2].Provider != store.ProviderGrok || snap.Floating.Providers[1].LiveText != "42.4 tok/s" {
 		t.Fatalf("floating = %+v", snap.Floating)
 	}
 	parts = nil

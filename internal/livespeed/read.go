@@ -37,13 +37,21 @@ func Read(now time.Time, homes Homes) ([]Response, []Flight) {
 }
 
 func readGrok(now time.Time, home string, since time.Time, responses *[]Response, flights *[]Flight) {
+	if home == "" {
+		return
+	}
 	root := filepath.Join(home, "sessions")
+	seen := make(map[string]bool)
 	eachRecent(root, 4, since, func(path string, info fs.FileInfo) {
-		if info.Name() != "updates.jsonl" {
+		if info.Name() != "updates.jsonl" && info.Name() != "events.jsonl" {
 			return
 		}
 		dir := filepath.Dir(path)
-		parseGrok(now, dir, tailOf(path), tailOf(filepath.Join(dir, "events.jsonl")), responses, flights)
+		if seen[dir] {
+			return
+		}
+		seen[dir] = true
+		parseGrok(now, dir, tailOf(filepath.Join(dir, "updates.jsonl")), tailOf(filepath.Join(dir, "events.jsonl")), responses, flights)
 	})
 }
 
@@ -159,10 +167,18 @@ func parseGrok(now time.Time, dir string, updates, events []byte, responses *[]R
 			if ev.Model != "" {
 				model = ev.Model
 			}
-		case ev.Type == "phase_changed" && ev.Phase == "waiting_for_model":
-			waitAt = at
+		case ev.Type == "first_token" || ev.Type == "phase_changed" &&
+			(ev.Phase == "waiting_for_model" || ev.Phase == "streaming_reasoning" || ev.Phase == "streaming_text"):
+			// A long turn's start can precede the bounded log tail.
+			if !open {
+				turnStart, open = at, true
+			}
+			if ev.Phase == "waiting_for_model" {
+				waitAt = at
+			}
 		case ev.Type == "turn_ended":
 			open = false
+			turnStart, waitAt = time.Time{}, time.Time{}
 		}
 	}
 	for _, line := range bytes.Split(updates, []byte("\n")) {

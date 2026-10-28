@@ -117,11 +117,8 @@ func layoutTrayComponent(d trayPen, r TrayRender, comp runway.StatusBarComponent
 	}
 	start := x
 	icons := !r.HideIcons
-	if len(comp.Cells) == 1 && comp.Cells[0].Gauge {
-		return trayLiveGauge(d, comp.Cells[0], x, icons)
-	}
 	if r.Style == store.StatusBarStyleRings {
-		if r.RingValues && ringValuesFit(comp.Cells) {
+		if r.RingValues && comp.LiveText == "" && ringValuesFit(comp.Cells) {
 			return trayValueRings(d, comp.Cells, x, icons)
 		}
 		return trayRings(d, comp, x, icons)
@@ -147,6 +144,19 @@ func layoutTrayComponent(d trayPen, r TrayRender, comp runway.StatusBarComponent
 	case store.StatusBarStyleText:
 		x += trayText(d, comp.Cells, x)
 	}
+	if len(comp.Cells) > 1 && r.Style != store.StatusBarStyleText || r.Style == store.StatusBarStyleBattery && r.Battery == store.BatteryVertical {
+		if comp.LiveText != "" {
+			x += 5 + d.text(comp.LiveText, x+5, 11, 9, 500, 0.8, 0)
+		} else if comp.Provider == "" {
+			var w float32
+			for i, c := range comp.Cells[:min(2, len(comp.Cells))] {
+				if c.LiveText != "" {
+					w = max(w, 5+d.text(c.LiveText, x+5, trayRows(2)[i], 8.5, 500, 0.8, 0))
+				}
+			}
+			x += w
+		}
+	}
 	return x - start
 }
 
@@ -156,7 +166,7 @@ func trayMeters(d trayPen, cells []runway.StatusBarCell, x float32, rowIcons boo
 	if len(cells) == 1 {
 		c := cells[0]
 		d.bar(x, 11, 34, 6, c)
-		return 34 + 5 + d.text(c.MeterText, x+39, 11, 11, 600, 1, 96)
+		return 34 + 5 + d.detail(c.MeterText, c.LiveText, x+39, 11, 600, 96)
 	}
 	lead := d.rowLead(cells, x, rowIcons)
 	w := float32(0)
@@ -175,7 +185,7 @@ func trayMeters(d trayPen, cells []runway.StatusBarCell, x float32, rowIcons boo
 
 func trayCountdown(d trayPen, cells []runway.StatusBarCell, x float32, rowIcons bool) float32 {
 	if len(cells) == 1 {
-		return d.text(cells[0].Countdown, x, 11, 12.5, 600, 1, 120)
+		return d.detail(cells[0].Countdown, cells[0].LiveText, x, 12.5, 600, 120)
 	}
 	lead := d.rowLead(cells, x, rowIcons)
 	w := float32(0)
@@ -196,7 +206,9 @@ func trayHorizontalBatteries(d trayPen, cells []runway.StatusBarCell, x float32,
 		d.hBattery(ui.Rect{X: x, Y: 4.5, W: w, H: 13}, c, c.Percent, 9)
 		w += 2.5
 		if c.BatteryText != c.Percent {
-			w += 5 + d.text(c.BatteryText, x+w+5, 11, 11, 600, 1, 96)
+			w += 5 + d.detail(c.BatteryText, c.LiveText, x+w+5, 11, 600, 96)
+		} else if c.LiveText != "" {
+			w += 5 + d.text(c.LiveText, x+w+5, 11, 9, 500, 0.8, 0)
 		}
 		return w
 	}
@@ -244,17 +256,12 @@ func trayVerticalBatteries(d trayPen, cells []runway.StatusBarCell, x float32, r
 	return x - start + w
 }
 
-// ---- Rings: a ring around the logo, or concentric rings after it, the
+// ---- Rings: a ring or concentric rings around the logo, the
 // first window outside; the percentages beside them.
 
 func trayRings(d trayPen, comp runway.StatusBarComponent, x float32, icons bool) float32 {
 	cells := comp.Cells
 	start := x
-	if len(cells) > 1 && icons {
-		// Two rings leave no room inside for the logo.
-		d.icon(cells[0].Provider, x, 11, trayIconSize)
-		x += trayIconSize + 4
-	}
 	cx, cy := x+10.25, float32(11)
 	if len(cells) == 1 {
 		d.ring(cx, cy, 8.4, 2.3, cells[0])
@@ -264,16 +271,16 @@ func trayRings(d trayPen, comp runway.StatusBarComponent, x float32, icons bool)
 	} else {
 		d.ring(cx, cy, 9.1, 2, cells[0])
 		d.ring(cx, cy, 5.4, 2, cells[1])
+		if icons {
+			d.icon(cells[0].Provider, cx-3.5, cy, 7)
+		}
 	}
 	x += 20.5 + 4
-	if len(cells) == 1 {
-		return x - start + d.text(cells[0].Percent, x, 11, 11, 650, 1, 96)
+	parts := make([]string, 0, min(2, len(cells)))
+	for _, c := range cells[:min(2, len(cells))] {
+		parts = append(parts, c.Percent)
 	}
-	w := float32(0)
-	for i, c := range cells[:2] {
-		w = max(w, d.text(c.Percent, x, trayRows(2)[i], 8.5, 600, 1, 84))
-	}
-	return x - start + w
+	return x - start + d.detail(strings.Join(parts, " · "), comp.LiveText, x, 11, 650, 0)
 }
 
 // ---- Rings with values: the logo, then a ring per window with its value
@@ -318,25 +325,18 @@ func ringValuesFit(cells []runway.StatusBarCell) bool {
 // ---- Text: the main window large, the second small after it.
 
 func trayText(d trayPen, cells []runway.StatusBarCell, x float32) float32 {
+	if cells[0].LiveText != "" {
+		text := cells[0].Percent
+		if len(cells) > 1 {
+			text += " · " + cells[1].Percent
+		}
+		return d.detail(text, cells[0].LiveText, x, 12.5, 650, 0)
+	}
 	w := d.text(cells[0].Percent, x, 11, 12.5, 650, 1, 96)
 	if len(cells) > 1 {
 		w += 3 + d.text(cells[1].Percent, x+w+3, 12, 9.5, 500, 0.6, 72)
 	}
 	return w
-}
-
-// ---- Live rate with its quota: the logo and rate raised, a gauge under
-// both that keeps clear of them.
-
-func trayLiveGauge(d trayPen, c runway.StatusBarCell, x float32, icons bool) float32 {
-	start, cy := x, float32(8.5)
-	if icons && c.Provider != "" {
-		d.icon(c.Provider, x, cy, 11)
-		x += 11 + 3.5
-	}
-	x += d.text(c.Percent, x, cy, 11, 650, 1, 96)
-	d.gauge(ui.Rect{X: start, Y: 16, W: x - start, H: 3.5}, c)
-	return x - start
 }
 
 // trayPen draws in a layer, or only measures without a painter.
@@ -363,6 +363,18 @@ func (d trayPen) text(s string, x, cy, size float32, weight int, alpha, maxW flo
 		m := f.Metrics()
 		d.p.Glyphs(ui.Shape(s, f), x, cy-(m.Ascent+m.Descent)/2+m.Ascent, d.paint.ink.Alpha(alpha))
 	}
+	return w
+}
+
+func (d trayPen) detail(text, live string, x, size float32, weight int, maxW float32) float32 {
+	if live == "" {
+		return d.text(text, x, 11, size, weight, 1, maxW)
+	}
+	text = trayFit(text, trayFontWeight(9, weight), maxW)
+	tw, lw := d.measure(text, 9, weight), d.measure(live, 8.5, 500)
+	w := max(tw, lw)
+	d.text(text, x+(w-tw)/2, 6, 9, weight, 1, 0)
+	d.text(live, x+(w-lw)/2, 16, 8.5, 500, 0.8, 0)
 	return w
 }
 
@@ -435,20 +447,6 @@ func (d trayPen) bar(x, cy, w, h float32, c runway.StatusBarCell) {
 	if fill, level := d.level(c); level > 0 && fill.A > 0 {
 		r.W = max(h, w*level)
 		d.p.Fill(r, fill, h/2)
-	}
-}
-
-// gauge is an outlined bar in the ink, white on a dark menu bar: the part
-// left is filled, the part used keeps only the outline.
-func (d trayPen) gauge(r ui.Rect, c runway.StatusBarCell) {
-	if !d.inks() {
-		return
-	}
-	d.p.Stroke(r, d.paint.ink.Alpha(0.55), r.H/2, 1)
-	if level := float32(min(100, max(0, c.Remaining))) / 100; level > 0 {
-		f := r
-		f.W = max(r.H, r.W*level)
-		d.p.Fill(f, d.paint.ink, r.H/2)
 	}
 }
 

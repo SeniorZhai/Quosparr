@@ -154,49 +154,89 @@ func TestExportFloatingStylesReview(t *testing.T) {
 	}
 }
 
-func TestFloatingLiveRatesStaySideBySideForEveryStyle(t *testing.T) {
-	v := runway.BuildFloating(l10n.New(l10n.English), runway.StatusInputs{
-		Live: []runway.LivePart{
-			{Provider: store.ProviderCodex, Text: "125.5 tok/s"},
-			{Provider: store.ProviderClaude, Text: "84 tok/s"},
-			{Provider: store.ProviderGrok, Text: "46.3 tok/s"},
-		},
-	})
-	one := v
-	one.Providers = v.Providers[:1]
+func TestFloatingStylesKeepQuotaAndSpeed(t *testing.T) {
 	for _, style := range store.FloatingStyles() {
-		w, h := floatingSize(style, v, "")
-		w1, h1 := floatingSize(style, one, "")
-		if w <= w1 || h != h1 || h != capsuleH {
-			t.Fatalf("live layout stacked or clipped: %v %v/%v vs %v/%v", style, w, h, w1, h1)
-		}
-		for _, item := range v.Providers {
-			main, second, mw, _ := capsuleParts(item, "")
-			if main != item.LiveText || second != "" || mw < floatingTextWidth(main, floatingFont(14, 650, "")) {
-				t.Fatal("live rate replaced by quota")
+		t.Run(string(style), func(t *testing.T) {
+			v := floatingSample(l10n.New(l10n.English))
+			idleW, idleH := floatingSize(style, v, "")
+			v.Live = true
+			v.Providers[1].LiveText = "125.5 tok/s"
+			w, h := floatingSize(style, v, "")
+			if w < idleW || h < idleH {
+				t.Fatalf("speed has no room: idle %vx%v, live %vx%v", idleW, idleH, w, h)
+			}
+			if style == store.FloatingStyleCard || style == store.FloatingStyleCapsule {
+				if h != idleH {
+					t.Fatalf("speed changed the fixed height: %v vs %v", h, idleH)
+				}
+			} else if h == idleH {
+				t.Fatalf("speed has no extra row: %v vs %v", h, idleH)
+			}
+			tip := floatingTooltip(v)
+			for _, want := range []string{"Codex", "73%", "41%", "Claude: 125.5 tok/s", "18%", "64%"} {
+				if !strings.Contains(tip, want) {
+					t.Errorf("tooltip %q misses %q", tip, want)
+				}
+			}
+			v.Providers[1].LiveText = "12345.6 tok/s · 12 agents"
+			longW, _ := floatingSize(style, v, "")
+			if longW <= w {
+				t.Fatalf("long speed did not grow width: %v vs %v", longW, w)
+			}
+		})
+	}
+	v := floatingSample(l10n.New(l10n.English))
+	v.Providers[1].LiveText = "125.5 tok/s"
+	main, second, _, _ := capsuleParts(v.Providers[1], "")
+	if main != "18%" || second != "64%" {
+		t.Fatalf("capsule lost its quotas: %q %q", main, second)
+	}
+	if os.Getenv("RUNWAY_FLOATING_QA") == "" {
+		return
+	}
+	dir := filepath.Join("..", "..", ".build", "v1-floating-qa")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, language := range []l10n.Language{l10n.English, l10n.SimplifiedChinese} {
+		for _, edge := range []bool{false, true} {
+			v := floatingSample(l10n.New(language))
+			v.Live = true
+			v.Providers[1].LiveText = "125.5 tok/s"
+			suffix := "-live.png"
+			if edge {
+				v.Providers[0].Meters = []runway.FloatingMeter{{ValueText: "$123,456.78"}}
+				v.Providers[0].LiveText = "12345.6 tok/s · 12 agents"
+				v.Providers[1].Meters[0].RemainingPercent = 100
+				v.Providers = append(v.Providers, runway.FloatingProvider{Provider: store.ProviderGrok, Name: "Grok", Status: "--", LiveText: "46.3 tok/s"})
+				suffix = "-live-edge.png"
+			}
+			for _, style := range store.FloatingStyles() {
+				w, h := floatingSize(style, v, "")
+				tt := ui.NewTester(func(c *ui.Context) {
+					ui.Box(c).Fill().Draw(func(p *ui.Painter, r ui.Rect) {
+						drawFloating(p, r, style, v, floatingInkFor(c.Theme()), "", floatingStyleRadius(style, r.H))
+					})
+				}, int(w), int(h))
+				tt.SetDark(true)
+				tt.SetScale(2)
+				name := string(style)
+				if name == "" {
+					name = "capsule"
+				}
+				exportReviewPNG(t, tt, filepath.Join(dir, string(language)+"-"+name+suffix))
 			}
 		}
 	}
-	tip := floatingTooltip(v)
-	for _, want := range []string{"Codex: 125.5 tok/s", "Claude: 84 tok/s", "Grok: 46.3 tok/s"} {
-		if !strings.Contains(tip, want) {
-			t.Fatalf("missing rate tooltip: %s", tip)
-		}
+}
+
+func TestFloatingLongBalancesFitTheirCells(t *testing.T) {
+	balance := runway.FloatingMeter{ValueText: "$123,456.78"}
+	if got := ringsItemWidth(runway.FloatingProvider{Meters: []runway.FloatingMeter{balance}}, ""); got < floatingTextWidth(balance.ValueText, floatingFont(12, 600, "")) {
+		t.Fatalf("ring balance clipped to %v", got)
 	}
-	if os.Getenv("RUNWAY_FLOATING_QA") != "" {
-		w, h := floatingSize(store.FloatingStyleCard, v, "")
-		tt := ui.NewTester(func(c *ui.Context) {
-			ui.Box(c).Fill().Draw(func(p *ui.Painter, r ui.Rect) {
-				drawFloating(p, r, store.FloatingStyleCard, v, floatingInkFor(c.Theme()), "", 14)
-			})
-		}, int(w), int(h))
-		tt.SetDark(true)
-		tt.SetScale(2)
-		dir := filepath.Join("..", "..", ".build", "v1-floating-qa")
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			t.Fatal(err)
-		}
-		exportReviewPNG(t, tt, filepath.Join(dir, "live-rates.png"))
+	if got := batteryMeterWidth(balance, ""); got < floatingTextWidth(balance.ValueText, floatingFont(11, 650, ""))+10 {
+		t.Fatalf("battery balance clipped to %v", got)
 	}
 }
 
