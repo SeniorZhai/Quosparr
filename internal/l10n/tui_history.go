@@ -1,6 +1,15 @@
 package l10n
 
 func init() {
+	tuiStrings["historySourceLocal"] = [7]string{
+		"Local tokens", "本机 Token", "本機 Token", "로컬 Token", "ローカル Token", "Локальные Token", "Token locaux",
+	}
+	tuiStrings["historySourceOfficial"] = [7]string{
+		"All-device tokens", "多端 Token", "多端 Token", "전체 기기 Token", "全デバイス Token", "Все устройства", "Token tous appareils",
+	}
+	tuiStrings["historyLocalFallback"] = [7]string{
+		"Local · online unavailable", "本机 · 官方不可用", "本機 · 官方不可用", "로컬 · 공식 통계 불가", "ローカル・公式取得不可", "Локально · онлайн недоступно", "Local · officiel indisponible",
+	}
 	tuiStrings["historyLocal"] = [7]string{
 		"Local sessions", "本机会话", "本機工作階段", "로컬 세션", "ローカルセッション", "Локальные сеансы", "Sessions locales",
 	}

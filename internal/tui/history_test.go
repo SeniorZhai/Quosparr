@@ -33,7 +33,7 @@ func TestHistoryReadsAllLocalProvidersWithoutWritingAppOrOfficialData(t *testing
 			t.Fatal(err)
 		}
 	}
-	reader := newHistoryReader(home)
+	reader := newHistoryReader(home, Account{})
 	now := at.Add(time.Hour)
 	for p, want := range map[store.Provider]int64{store.ProviderCodex: 115, store.ProviderClaude: 100, store.ProviderGrok: 120} {
 		got := reader.Read(context.Background(), p, now)
@@ -87,7 +87,7 @@ func TestHistoryUsesUTCYearBoundaries(t *testing.T) {
 			if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			got := newHistoryReader(home).Read(context.Background(), store.ProviderCodex, now)
+			got := newHistoryReader(home, Account{}).Read(context.Background(), store.ProviderCodex, now)
 			wantDays := map[string]int64{tc.from: 1}
 			wantDays[tc.through]++
 			if got.Failed || got.From != from || got.Through.Format(time.DateOnly) != tc.through || got.Through.Location() != time.UTC || !reflect.DeepEqual(got.Days, wantDays) {
@@ -103,7 +103,7 @@ func TestHistoryDistinguishesNoLogsFailureAndPartialData(t *testing.T) {
 	t.Setenv("CODEX_HOME", codexDir)
 	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(home, "claude"))
 	t.Setenv("GROK_HOME", filepath.Join(home, "grok"))
-	reader := newHistoryReader(home)
+	reader := newHistoryReader(home, Account{})
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	for _, p := range []store.Provider{store.ProviderCodex, store.ProviderClaude, store.ProviderGrok, store.ProviderKimi} {
 		got := reader.Read(context.Background(), p, now)

@@ -63,7 +63,7 @@ func Start(ctx context.Context, config Config, home string) *Runtime {
 	r.start(ctx, config, func(ctx context.Context, p store.Provider) providerReading {
 		return readProvider(ctx, home, p, config.Accounts[p], l10n.New(config.Language), time.Now())
 	})
-	r.startHistory(ctx, newHistoryReader(home).Read)
+	r.startHistory(ctx, newHistoryReader(home, config.Accounts[store.ProviderCodex]).Read)
 	return r
 }
 

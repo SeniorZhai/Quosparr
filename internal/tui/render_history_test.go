@@ -72,6 +72,62 @@ func TestHistoryUsesSpacedSolidCells(t *testing.T) {
 	}
 }
 
+func TestHistoryPrefersOfficialDaysWithoutAddingLocalUsage(t *testing.T) {
+	l := l10n.New(l10n.English)
+	now := time.Date(2026, 1, 10, 12, 0, 0, 0, time.UTC)
+	history := TokenHistory{Available: true, Incomplete: true,
+		Days:              map[string]int64{"2026-01-01": 7, "2026-01-02": 900},
+		AllDevices:        map[string]int64{"2026-01-01": 100, "2026-01-05": 0, "2026-01-09": 200},
+		OfficialStatsAsOf: "2026-01-09",
+	}
+	for _, mode := range []usage.HeatmapMode{usage.HeatmapDaily, usage.HeatmapWeekly, usage.HeatmapCumulative} {
+		lines := renderHistory(l, history, 75, 0, mode, now, false)
+		if !strings.Contains(lines[0], "300 Tokens") || !strings.Contains(lines[0], l.TUI("historySourceOfficial")) || !strings.Contains(lines[1], "2026-01-09") {
+			t.Fatalf("official source/total/date missing in %s: %q", mode, lines[:2])
+		}
+		grid := strings.Join(lines[2:9], "")
+		positive := strings.Count(grid, "░") + strings.Count(grid, "▒") + strings.Count(grid, "▓") + strings.Count(grid, "█")
+		if mode == usage.HeatmapDaily && (positive != 2 || strings.Count(grid, "□") != 1 || strings.Count(grid, "·") != 7) {
+			t.Fatalf("official-only days must render, local-only days must not be added: %q", grid)
+		}
+		if mode != usage.HeatmapDaily && positive != 10 {
+			t.Fatalf("official aggregated modes must fill days without a local log: %q", grid)
+		}
+	}
+	history.AllDevices, history.Incomplete, history.OfficialFailed = nil, false, true
+	fallback := renderHistory(l, history, 75, 0, usage.HeatmapDaily, now, false)
+	if !strings.Contains(fallback[0], "907 Tokens") || !strings.Contains(fallback[0], l.TUI("historyLocalFallback")) || strings.Contains(fallback[1], "2026-01-09") {
+		t.Fatalf("online failure must identify the local fallback: %q", fallback[:2])
+	}
+}
+
+func TestOfficialHistoryFitsSmallDashboard(t *testing.T) {
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	view := historyRenderFixture(now)
+	history := view.History[store.ProviderCodex]
+	history.AllDevices, history.Days, history.OfficialStatsAsOf = history.Days, nil, "2026-10-27"
+	view.History[store.ProviderCodex] = history
+	ansi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	for _, lang := range l10n.Languages() {
+		l := l10n.New(lang)
+		for _, size := range [][2]int{{40, 18}, {80, 24}, {13, 6}} {
+			frame := ansi.ReplaceAllString(renderDashboard(l, view, size[0], size[1], 0, 0, usage.HeatmapDaily, now, true), "")
+			lines := strings.Split(frame, "\r\n")
+			if len(lines) > size[1] {
+				t.Fatalf("%s %v: official date overflows rows", lang, size)
+			}
+			for _, line := range lines {
+				if cells(line) >= size[0] {
+					t.Fatalf("%s %v: official date overflows width: %q", lang, size, line)
+				}
+			}
+			if size[0] >= 40 && (!strings.Contains(frame, l.TUI("historySourceOfficial")) || !strings.Contains(frame, "2026-10-27")) {
+				t.Errorf("%s %v: official source/date lost: %q", lang, size, frame)
+			}
+		}
+	}
+}
+
 func TestHistoryYearRangeMonthLabelsAndHorizontalScrolling(t *testing.T) {
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	history := TokenHistory{From: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), Through: now.Truncate(24 * time.Hour), Available: true, Days: make(map[string]int64)}
@@ -154,7 +210,7 @@ func TestHistoryDashboardFitsAndPaginates(t *testing.T) {
 	view := historyRenderFixture(now)
 	l := l10n.New(l10n.English)
 	first := renderDashboard(l, view, 80, 24, 0, 0, usage.HeatmapDaily, now, false)
-	for _, want := range []string{"73%", "28%", "Token usage", "Su ", "Mo ", "Tu ", "We ", "Th ", "Fr ", "Sa ", "Page 1/3"} {
+	for _, want := range []string{"73%", "28%", l.TUI("historySourceLocal"), "Su ", "Mo ", "Tu ", "We ", "Th ", "Fr ", "Sa ", "Page 1/3"} {
 		if !strings.Contains(first, want) {
 			t.Errorf("80x24 must show a full quota/heatmap card; missing %q", want)
 		}
@@ -269,11 +325,15 @@ func TestExportHistoryPreview(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	view := historyRenderFixture(now)
+	history := view.History[store.ProviderCodex]
+	history.AllDevices, history.Days, history.OfficialStatsAsOf = history.Days, nil, "2026-10-27"
+	view.History[store.ProviderCodex] = history
 	for _, size := range [][2]int{{80, 24}, {120, 30}, {40, 18}, {126, 24}, {60, 18}, {20, 8}} {
 		for _, lang := range []l10n.Language{l10n.English, l10n.SimplifiedChinese} {
 			for _, color := range []bool{false, true} {
 				for page := 0; page < 2; page++ {
-					frame := renderDashboard(l10n.New(lang), historyRenderFixture(now), size[0], size[1], page, 0, usage.HeatmapDaily, now, color)
+					frame := renderDashboard(l10n.New(lang), view, size[0], size[1], page, 0, usage.HeatmapDaily, now, color)
 					ext := "txt"
 					if color {
 						ext = "ansi"

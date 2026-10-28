@@ -215,7 +215,11 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 	if mode != usage.HeatmapWeekly && mode != usage.HeatmapCumulative {
 		mode = usage.HeatmapDaily
 	}
-	grid := usage.BuildHeatmap(usage.HeatmapInput{Local: history.Days, Mode: mode, Now: now, FirstWeekday: 1, Loc: time.UTC})
+	grid := usage.BuildHeatmap(usage.HeatmapInput{AllDevices: history.AllDevices, Local: history.Days, Mode: mode, Now: now, FirstWeekday: 1, Loc: time.UTC})
+	days := history.Days
+	if grid.HasAllDevicesData {
+		days = history.AllDevices
+	}
 	weekdays := strings.Split(l.TUI("historyWeekdays"), " ")
 	labelWidth := 0
 	for _, label := range weekdays {
@@ -228,7 +232,7 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 	recorded := false
 	for _, week := range grid.Weeks {
 		for _, day := range week {
-			if _, known := history.Days[day.DayKey]; day.InRange && known {
+			if _, known := days[day.DayKey]; day.InRange && known {
 				recorded = true
 			}
 		}
@@ -237,16 +241,20 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 	if !history.Available || !recorded {
 		value = "—"
 	}
-	title := l.Text(l10n.KeyTokenUsageHeatmap)
+	title := l.TUI("historySourceLocal")
 	switch {
 	case history.Loading:
 		title = l.TUI("refreshing")
+	case grid.HasAllDevicesData:
+		title = l.TUI("historySourceOfficial")
 	case history.Failed:
 		title = l.TUI("historyFailed")
 	case history.Incomplete:
 		title = l.TUI("historyPartial")
 	case !history.Available || !recorded:
 		title = l.TUI("historyEmpty")
+	case history.OfficialFailed:
+		title = l.TUI("historyLocalFallback")
 	}
 	keys := []l10n.Key{l10n.KeyHeatmapDaily, l10n.KeyHeatmapWeekly, l10n.KeyHeatmapCumulative}
 	modes := []usage.HeatmapMode{usage.HeatmapDaily, usage.HeatmapWeekly, usage.HeatmapCumulative}
@@ -261,12 +269,19 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 		choices = append(choices, label)
 	}
 	year := now.UTC().Format("2006") + " UTC"
+	if grid.HasAllDevicesData && history.OfficialStatsAsOf != "" {
+		year = l.Textf(l10n.KeyHeatmapOfficialAsOf, history.OfficialStatsAsOf)
+	}
 	modeText := strings.Join(choices, " ")
 	if cells(modeText)+cells(year)+1 > width {
 		modeText = selected
 	}
 	if cells(modeText)+cells(year)+1 > width {
-		year = now.UTC().Format("2006")
+		if grid.HasAllDevicesData && history.OfficialStatsAsOf != "" {
+			year = history.OfficialStatsAsOf
+		} else {
+			year = now.UTC().Format("2006")
+		}
 	}
 	lines := []string{
 		styled(pad(paired(title, value, width), width), "1;38;5;117", color),
@@ -277,7 +292,7 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 		line := styled(pad(label, prefixWidth), "38;5;245", color)
 		for _, week := range grid.Weeks[start:end] {
 			day := week[weekday]
-			_, known := history.Days[day.DayKey]
+			_, known := days[day.DayKey]
 			cell, shade := "·", "38;5;240"
 			if !day.InRange {
 				cell = " "
