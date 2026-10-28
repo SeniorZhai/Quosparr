@@ -40,7 +40,7 @@ func TestHistoryReadsAllLocalProvidersWithoutWritingAppOrOfficialData(t *testing
 		if got.Failed || got.Incomplete || !got.Available || !reflect.DeepEqual(got.Days, map[string]int64{"2026-10-28": want}) {
 			t.Fatalf("%s history = %+v", p, got)
 		}
-		if got.Through.Sub(got.From) != 370*24*time.Hour || got.From.Location() != time.UTC {
+		if got.From != time.Date(2025, 11, 1, 0, 0, 0, 0, time.UTC) || got.Through != time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC) {
 			t.Fatalf("incorrect UTC range: %+v", got)
 		}
 	}
@@ -52,6 +52,47 @@ func TestHistoryReadsAllLocalProvidersWithoutWritingAppOrOfficialData(t *testing
 	}
 	if _, err := os.Stat(filepath.Join(home, ".quosparr")); !os.IsNotExist(err) {
 		t.Fatal("scan created App data")
+	}
+}
+
+func TestHistoryUsesTwelveUTCMonthBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name, now, from, through string
+	}{
+		{"year boundary", "2026-01-31T12:00:00Z", "2025-02-01", "2026-01-31"},
+		{"leap month", "2024-02-29T12:00:00Z", "2023-03-01", "2024-02-29"},
+		{"UTC before local month", "2026-03-01T00:30:00+08:00", "2025-03-01", "2026-02-28"},
+		{"UTC after local month", "2025-12-31T23:30:00-08:00", "2025-02-01", "2026-01-01"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			codexDir := filepath.Join(home, "codex")
+			t.Setenv("CODEX_HOME", codexDir)
+			now, err := time.Parse(time.RFC3339, tc.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			from, err := time.Parse(time.DateOnly, tc.from)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(codexDir, "sessions", "one.jsonl")
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			var data string
+			for _, at := range []time.Time{from.Add(-time.Second), from, now.Add(-time.Second), now.Add(time.Second)} {
+				data += fmt.Sprintf(`{"timestamp":%q,"type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":1}}}}`+"\n", at.Format(time.RFC3339))
+			}
+			if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got := newHistoryReader(home).Read(context.Background(), store.ProviderCodex, now)
+			wantDays := map[string]int64{tc.from: 1, tc.through: 1}
+			if got.Failed || got.From != from || got.Through.Format(time.DateOnly) != tc.through || got.Through.Location() != time.UTC || !reflect.DeepEqual(got.Days, wantDays) {
+				t.Fatalf("month range = %+v, want %s through %s with days %v", got, tc.from, tc.through, wantDays)
+			}
+		})
 	}
 }
 

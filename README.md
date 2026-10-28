@@ -141,7 +141,7 @@ The setup wizard opens when no TUI configuration exists. Run `quosparr --setup` 
 
 The display updates every second and adapts to terminal size. Quota requests follow the saved TUI refresh interval, five minutes by default. Press `r` to refresh, `n` / `p` / `Tab` to browse provider pages in a small terminal, and `q`, `Esc` or `Ctrl+C` to exit.
 
-Codex, Claude and Grok cards also show a UTC heatmap of local Token usage, which can span accounts. Narrow cards show a shorter date range. History refreshes every five minutes (or a longer configured interval); `r` refreshes it immediately. Missing records are distinct from recorded zero usage.
+Codex, Claude and Grok cards also show a calendar-month heatmap of local Token usage by UTC date and a total for the displayed month, which can span accounts. Browse the latest 12 calendar months with `[` / `]`, or press `0` to return to the current month, which runs through today. History refreshes every five minutes (or a longer configured interval); `r` refreshes it immediately. Missing records are distinct from recorded zero usage.
 
 The private `~/.quosparr/tui/config.json` contains no keys. TUI credential copies are stored only in `~/.quosparr/accounts/<tui-id>/auth.json` (directory `0700`, file `0600`; on Windows, a protected ACL accessible only to the current user, with inheritance disabled). Import reads the selected desktop credentials and copies only necessary fields, without changing the desktop app or official login. Normal TUI operation does not refresh OAuth tokens or change official logins; when credentials expire, sign in with the CLI again or import them again.
 

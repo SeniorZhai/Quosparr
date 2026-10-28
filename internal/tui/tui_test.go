@@ -24,7 +24,7 @@ func TestRenderFloatingData(t *testing.T) {
 		{Name: "Claude", Meters: []runway.FloatingMeter{{Label: "Balance", ValueText: "$12.34"}}},
 		{Name: "Grok", Status: "Log in"},
 	}}
-	got := renderDashboard(l10n.New(l10n.English), View{Floating: view}, 80, 24, 0, time.Now(), false)
+	got := renderDashboard(l10n.New(l10n.English), View{Floating: view}, 80, 24, 0, 0, time.Now(), false)
 	for _, want := range []string{"Codex", "42 tok/s", "73%", "28%", "Reset in 2h 18m", "$12.34", "Grok", "Log in", "r Refresh", "q/Esc Quit"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
@@ -65,7 +65,7 @@ func TestRenderStaysInsideSmallTerminals(t *testing.T) {
 	}}
 	for _, dimensions := range [][2]int{{80, 24}, {20, 8}, {7, 3}, {3, 1}, {1, 1}, {0, 0}} {
 		w, h := dimensions[0], dimensions[1]
-		got := renderDashboard(l10n.New(l10n.SimplifiedChinese), View{Floating: view}, w, h, 0, time.Now(), true)
+		got := renderDashboard(l10n.New(l10n.SimplifiedChinese), View{Floating: view}, w, h, 0, 0, time.Now(), true)
 		if strings.Contains(got, "\x1b[?1049l") {
 			t.Fatal("provider text injected an escape sequence")
 		}
@@ -83,7 +83,7 @@ func TestRenderStaysInsideSmallTerminals(t *testing.T) {
 			}
 		}
 	}
-	got := renderDashboard(l10n.New(l10n.English), View{Floating: view}, 80, 24, 0, time.Now(), false)
+	got := renderDashboard(l10n.New(l10n.English), View{Floating: view}, 80, 24, 0, 0, time.Now(), false)
 	if !strings.Contains(got, "100%") || !strings.Contains(got, "0%") {
 		t.Fatal("quota percentages are not clamped to the display range")
 	}
@@ -121,6 +121,28 @@ func TestRunRefreshAndRestoresOnKeyboardExit(t *testing.T) {
 		}
 		if !strings.HasPrefix(output.String(), enterScreen) || !strings.HasSuffix(output.String(), leaveScreen) {
 			t.Fatal("alternate screen and cursor were not restored")
+		}
+	}
+}
+
+func TestRunSwitchesMonthsAndClampsTheHistoryRange(t *testing.T) {
+	now := time.Now().UTC()
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	view := historyRenderFixture(now)
+	term := &fakeTerminal{keys: [][]byte{[]byte("]"), []byte("["), []byte("["), []byte("]"), []byte("0"), []byte(strings.Repeat("[", 20)), []byte("]"), []byte("q")}}
+	var output bytes.Buffer
+	if err := run(context.Background(), &output, term, l10n.New(l10n.English), func() View { return view }, nil); err != nil {
+		t.Fatal(err)
+	}
+	frames := strings.Split(output.String(), "\x1b[H")[1:]
+	want := []int{0, 0, -1, -2, -1, 0, -11, -10}
+	if len(frames) != len(want) || !term.restored {
+		t.Fatalf("frames=%d, restored=%v", len(frames), term.restored)
+	}
+	for i, offset := range want {
+		label := month.AddDate(0, offset, 0).Format("2006-01") + " UTC"
+		if !strings.Contains(frames[i], label) {
+			t.Errorf("frame %d lacks %s", i, label)
 		}
 	}
 }
@@ -173,8 +195,8 @@ func TestDashboardPagesAndRefreshStatus(t *testing.T) {
 		view.Floating.Providers = append(view.Floating.Providers, runway.FloatingProvider{Name: name, Status: "Sign in"})
 	}
 	l := l10n.New(l10n.English)
-	first := renderDashboard(l, view, 80, 24, 0, now, false)
-	second := renderDashboard(l, view, 80, 24, 1, now, false)
+	first := renderDashboard(l, view, 80, 24, 0, 0, now, false)
+	second := renderDashboard(l, view, 80, 24, 1, 0, now, false)
 	for _, want := range []string{"Auto refresh 5m0s", "Next refresh 00:47", "Page 1/2", "Codex", "Kimi"} {
 		if !strings.Contains(first, want) {
 			t.Errorf("first page lacks %q", want)
@@ -184,7 +206,7 @@ func TestDashboardPagesAndRefreshStatus(t *testing.T) {
 		t.Fatal("providers are not paginated")
 	}
 	view.Refreshing = true
-	if got := renderDashboard(l, view, 80, 24, 0, now, false); !strings.Contains(got, "Refreshing") || strings.Contains(got, "Next refresh 00:47") {
+	if got := renderDashboard(l, view, 80, 24, 0, 0, now, false); !strings.Contains(got, "Refreshing") || strings.Contains(got, "Next refresh 00:47") {
 		t.Fatal("refresh state is ambiguous")
 	}
 	term := &fakeTerminal{keys: [][]byte{[]byte("c")}}

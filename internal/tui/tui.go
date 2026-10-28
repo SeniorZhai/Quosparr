@@ -76,7 +76,7 @@ func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, sn
 	}
 	var nextFrame time.Time
 	lastWidth, lastHeight := 0, 0
-	page := 0
+	page, monthOffset := 0, 0
 	color := os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 	for ctx.Err() == nil {
 		w, h, sizeErr := term.size()
@@ -84,7 +84,7 @@ func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, sn
 			return sizeErr
 		}
 		if now := time.Now(); !now.Before(nextFrame) || w != lastWidth || h != lastHeight {
-			frame := renderDashboard(l, snapshot(), w, h, page, time.Now(), color)
+			frame := renderDashboard(l, snapshot(), w, h, page, monthOffset, time.Now(), color)
 			prefix := "\x1b[H"
 			if color {
 				prefix += "\x1b[48;5;234m\x1b[38;5;252m"
@@ -117,6 +117,15 @@ func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, sn
 				nextFrame = time.Time{}
 			case 'p', 'P':
 				page--
+				nextFrame = time.Time{}
+			case '[':
+				monthOffset = max(-11, monthOffset-1)
+				nextFrame = time.Time{}
+			case ']':
+				monthOffset = min(0, monthOffset+1)
+				nextFrame = time.Time{}
+			case '0':
+				monthOffset = 0
 				nextFrame = time.Time{}
 			case 'r', 'R':
 				if refresh != nil {

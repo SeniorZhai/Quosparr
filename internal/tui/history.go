@@ -43,7 +43,8 @@ func (r *historyReader) Read(ctx context.Context, provider store.Provider, now t
 	}
 	now = now.UTC()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	out := TokenHistory{From: today.AddDate(0, 0, -370), Through: today, UpdatedAt: now}
+	month := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	out := TokenHistory{From: month.AddDate(0, -11, 0), Through: today, UpdatedAt: now}
 	window := usage.Window{Start: out.From, End: now}
 	var days map[string]int64
 	switch provider {

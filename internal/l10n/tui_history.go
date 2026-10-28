@@ -22,4 +22,10 @@ func init() {
 	tuiStrings["historyWeekdays"] = [7]string{
 		"Su Mo Tu We Th Fr Sa", "日 一 二 三 四 五 六", "日 一 二 三 四 五 六", "일 월 화 수 목 금 토", "日 月 火 水 木 金 土", "Вс Пн Вт Ср Чт Пт Сб", "Di Lu Ma Me Je Ve Sa",
 	}
+	tuiStrings["historyMonth"] = [7]string{
+		"Month", "月份", "月份", "월", "月", "Месяц", "Mois",
+	}
+	tuiStrings["historyThisMonth"] = [7]string{
+		"This month", "本月", "本月", "이번 달", "今月", "Этот месяц", "Ce mois",
+	}
 }

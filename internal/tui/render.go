@@ -47,13 +47,16 @@ func paired(left, right string, width int) string {
 	return left + strings.Repeat(" ", max(0, width-cells(left)-cells(right))) + right
 }
 
-func renderDashboard(l l10n.Localizer, view View, columns, rows, page int, now time.Time, color bool) string {
+func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffset int, now time.Time, color bool) string {
 	w := max(0, columns-1)
 	if w == 0 || rows <= 0 {
 		return ""
 	}
 	dim, bright, accent := "38;5;245", "1;38;5;255", "38;5;114"
 	footer := "r " + l.Text(l10n.KeyRefresh) + "   c " + l.TUI("configure") + "   q/Esc " + l.Text(l10n.KeyQuit)
+	if len(view.History) > 0 {
+		footer = "[/] " + l.TUI("historyMonth") + "  0 " + l.TUI("historyThisMonth") + "   " + footer
+	}
 	if w < 12 || rows < 6 {
 		lines := []string{fit("Quosparr", w), fit(l.TUI("resize"), w), fit("n/p r c q/Esc", w)}
 		return strings.Join(lines[:min(rows, len(lines))], "\r\n")
@@ -98,7 +101,7 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page int, now t
 		card := renderCard(l, p, cardWidth, color)
 		sections := [][]string{card}
 		if history, ok := view.History[p.Provider]; ok {
-			body := renderHistory(l, history, cardWidth-4, now, color)
+			body := renderHistory(l, history, cardWidth-4, monthOffset, now, color)
 			historyCard := append([]string{card[0], card[1]}, body...)
 			historyCard = append(historyCard, card[len(card)-1])
 			for i := 2; i < len(historyCard)-1; i++ {
@@ -150,7 +153,7 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page int, now t
 		for len(lines) < rows-1 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, styled(fit(fmt.Sprintf("n/p %d/%d r c q/Esc", page+1, len(pages)), w), accent, color))
+		lines = append(lines, styled(fit(fmt.Sprintf("n/p %d/%d [/] 0 r c q/Esc", page+1, len(pages)), w), accent, color))
 		return strings.Join(lines, "\r\n")
 	}
 	for len(lines) < rows-2 {
@@ -176,25 +179,38 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page int, now t
 	}
 	if cells(footer)+cells(pageText)+1 > w {
 		footer = "r c q/Esc"
+		if len(view.History) > 0 {
+			footer = "[/] 0 " + footer
+		}
 	}
 	lines = append(lines, styled(paired(footer, pageText, w), accent, color))
 	return strings.Join(lines[:min(rows, len(lines))], "\r\n")
 }
 
-func renderHistory(l l10n.Localizer, history TokenHistory, width int, now time.Time, color bool) []string {
-	through := history.Through
-	if through.IsZero() {
-		through = now.UTC().Truncate(24 * time.Hour)
+func renderHistory(l l10n.Localizer, history TokenHistory, width, monthOffset int, now time.Time, color bool) []string {
+	month := time.Date(now.UTC().Year(), now.UTC().Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, monthOffset, 0)
+	end := month.AddDate(0, 1, -1)
+	through := now.UTC().Truncate(24 * time.Hour)
+	if !history.Through.IsZero() && history.Through.Before(through) {
+		through = history.Through
 	}
-	weekStart := through.AddDate(0, 0, -int(through.Weekday()))
+	if end.Before(through) {
+		through = end
+	}
+	start := month.AddDate(0, 0, -int(month.Weekday()))
+	weeks := int(end.Sub(start)/(7*24*time.Hour)) + 1
 	weekdays := strings.Split(l.TUI("historyWeekdays"), " ")
 	labelWidth := 0
 	for _, label := range weekdays {
 		labelWidth = max(labelWidth, cells(label))
 	}
-	weeks := min(53, max(1, width-labelWidth-1))
-	start := weekStart.AddDate(0, 0, -7*(weeks-1))
-	from := start
+	labelWidth = max(0, min(labelWidth, width-weeks))
+	prefixWidth := 0
+	if labelWidth > 0 {
+		prefixWidth = min(labelWidth+1, width-weeks)
+	}
+	cellWidth := max(1, min(4, (width-prefixWidth)/weeks))
+	from := month
 	if history.From.After(from) {
 		from = history.From
 	}
@@ -233,13 +249,7 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width int, now time.T
 	case !history.Available || recorded == 0:
 		state = l.TUI("historyEmpty")
 	}
-	dateRange := from.Format("2006-01-02") + "–" + through.Format("2006-01-02") + " UTC"
-	if width < cells(dateRange) {
-		dateRange = from.Format("01/02") + "–" + through.Format("01/02") + " UTC"
-	}
-	if width < cells(dateRange) {
-		dateRange = from.Format("1/2") + "–" + through.Format("1/2")
-	}
+	dateRange := month.Format("2006-01") + " UTC"
 	stateInLegend := cells(dateRange)+cells(state)+1 > width
 	if !stateInLegend {
 		dateRange = paired(dateRange, state, width)
@@ -250,7 +260,10 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width int, now time.T
 	}
 	shades := []string{"38;5;238", "38;5;24", "38;5;31", "38;5;39", "38;5;81"}
 	for weekday, label := range weekdays {
-		line := styled(pad(label, labelWidth)+" ", "38;5;245", color)
+		line := ""
+		if labelWidth > 0 {
+			line = styled(pad(label, labelWidth)+strings.Repeat(" ", prefixWidth-labelWidth), "38;5;245", color)
+		}
 		for week := 0; week < weeks; week++ {
 			day := start.AddDate(0, 0, week*7+weekday)
 			value, known := history.Days[day.Format("2006-01-02")]
@@ -273,9 +286,21 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width int, now time.T
 				}
 				shade = shades[level]
 			}
+			if day.Before(month) || day.After(end) {
+				line += strings.Repeat(" ", cellWidth)
+				continue
+			}
+			if cellWidth >= 3 {
+				line += styled(day.Format("02"), "38;5;245", color)
+			}
 			line += styled(cell, shade, color)
+			padding := cellWidth - 1
+			if cellWidth >= 3 {
+				padding -= 2
+			}
+			line += strings.Repeat(" ", padding)
 		}
-		lines = append(lines, line+strings.Repeat(" ", max(0, width-labelWidth-1-weeks)))
+		lines = append(lines, line+strings.Repeat(" ", max(0, width-prefixWidth-weeks*cellWidth)))
 	}
 	legend := "· " + l.TUI("historyMissing") + "  □ 0  " + l.TUI("historyLowHigh") + " "
 	if stateInLegend {

@@ -19,14 +19,14 @@ func TestHistoryDayAlignmentAndMissingRecords(t *testing.T) {
 	history := TokenHistory{From: now.AddDate(0, 0, -10).Truncate(24 * time.Hour), Through: now.Truncate(24 * time.Hour), Available: true,
 		Days: map[string]int64{"2026-10-18": 0, "2026-10-19": 10, "2026-10-20": 20, "2026-10-21": 30,
 			"2026-10-22": 40, "2026-10-23": 50, "2026-10-24": 60, "2026-10-26": 70, "2026-10-27": 80, "2026-10-28": 90}}
-	lines := renderHistory(l10n.New(l10n.English), history, 5, now, false)
-	want := []string{"Su □·", "Mo ░▓", "Tu ░█", "We ░█", "Th ▒ ", "Fr ▒ ", "Sa ▓ "}
+	lines := renderHistory(l10n.New(l10n.English), history, 8, 0, now, false)
+	want := []string{"Su    □·", "Mo    ░▓", "Tu    ░█", "We    ░█", "Th    ▒ ", "Fr    ▒ ", "Sa    ▓ "}
 	for day, row := range want {
 		if lines[day+2] != row {
 			t.Errorf("day %d = %q, want %q", day, lines[day+2], row)
 		}
 	}
-	colored := strings.Join(renderHistory(l10n.New(l10n.English), history, 5, now, true), "\n")
+	colored := strings.Join(renderHistory(l10n.New(l10n.English), history, 8, 0, now, true), "\n")
 	for _, shade := range []string{"38;5;24", "38;5;31", "38;5;39", "38;5;81"} {
 		if !strings.Contains(colored, "\x1b["+shade+"m■") {
 			t.Errorf("missing heatmap intensity %s", shade)
@@ -41,13 +41,17 @@ func TestHistoryVisibleRangeAndEmptyStates(t *testing.T) {
 		history.Days[day.Format(time.DateOnly)] = 100
 	}
 	l := l10n.New(l10n.English)
-	wide := renderHistory(l, history, 100, now, false)
-	if strings.Count(wide[2], "░") != 53 || !strings.Contains(wide[1], "2025-10-26–2026-10-28 UTC") || !strings.Contains(wide[0], "36.8K Tokens") {
-		t.Fatalf("annual range mismatch: %q", wide)
+	wide := renderHistory(l, history, 100, 0, now, false)
+	if strings.Count(wide[2], "░") != 4 || !strings.Contains(wide[1], "2026-10 UTC") || !strings.Contains(wide[0], "2.8K Tokens") {
+		t.Fatalf("current month range mismatch: %q", wide)
 	}
-	narrow := renderHistory(l, history, 23, now, false)
-	if strings.Count(narrow[2], "░") != 20 || !strings.Contains(narrow[0], "13.7K Tokens") {
-		t.Fatalf("narrow view must summarize only its recent 20 weeks: %q", narrow)
+	narrow := renderHistory(l, history, 23, 0, now, false)
+	if strings.Count(narrow[2], "░") != 4 || !strings.Contains(narrow[0], "2.8K Tokens") {
+		t.Fatalf("narrow view must keep the same full month: %q", narrow)
+	}
+	previous := renderHistory(l, history, 75, -1, now, false)
+	if !strings.Contains(previous[1], "2026-09 UTC") || !strings.Contains(previous[0], "3K Tokens") {
+		t.Fatalf("previous month range mismatch: %q", previous)
 	}
 	for _, tc := range []struct {
 		history TokenHistory
@@ -59,9 +63,50 @@ func TestHistoryVisibleRangeAndEmptyStates(t *testing.T) {
 		{TokenHistory{Incomplete: true}, "Incomplete records"},
 		{TokenHistory{Available: true, Days: map[string]int64{"2020-01-01": 100}}, "No local records"},
 	} {
-		got := strings.Join(renderHistory(l, tc.history, 75, now, false), "\n")
+		got := strings.Join(renderHistory(l, tc.history, 75, 0, now, false), "\n")
 		if !strings.Contains(got, tc.state) || strings.Contains(got, "0 Tokens") || strings.Contains(got, "□") && strings.Count(got, "□") != 1 {
 			t.Errorf("unavailable history must not claim zero usage: %q", got)
+		}
+	}
+}
+
+func TestHistoryLeapMonthAndSixWeekMonth(t *testing.T) {
+	l := l10n.New(l10n.English)
+	for _, tc := range []struct {
+		month time.Time
+		days  int
+	}{
+		{time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC), 29},
+		{time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), 31},
+	} {
+		history := TokenHistory{From: tc.month, Through: tc.month.AddDate(0, 1, 0), Available: true, Days: make(map[string]int64)}
+		for day := 0; day < tc.days; day++ {
+			history.Days[tc.month.AddDate(0, 0, day).Format(time.DateOnly)] = 1
+		}
+		history.Days[tc.month.AddDate(0, 1, 0).Format(time.DateOnly)] = 999
+		for _, width := range []int{8, 23, 75} {
+			lines := renderHistory(l, history, width, -1, history.Through, false)
+			grid := strings.Join(lines[2:9], "\n")
+			if strings.Count(grid, "░") != tc.days {
+				t.Fatalf("%s width %d lost days: %q", tc.month.Format("2006-01"), width, grid)
+			}
+			if width >= 23 && !strings.Contains(lines[0], fmt.Sprintf("%d Tokens", tc.days)) {
+				t.Fatalf("adjacent month leaked into total: %q", lines[0])
+			}
+			for _, line := range lines {
+				if cells(line) != width {
+					t.Fatalf("width %d row has %d cells: %q", width, cells(line), line)
+				}
+			}
+		}
+		for _, lang := range l10n.Languages() {
+			lc := l10n.New(lang)
+			lines := renderHistory(lc, history, 8, -1, history.Through, false)
+			for day, label := range strings.Split(lc.TUI("historyWeekdays"), " ") {
+				if !strings.HasPrefix(lines[day+2], label) {
+					t.Errorf("%s lost weekday %s in a narrow month: %q", lang, label, lines[day+2])
+				}
+			}
 		}
 	}
 }
@@ -70,14 +115,14 @@ func TestHistoryDashboardFitsAndPaginates(t *testing.T) {
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
 	view := historyRenderFixture(now)
 	l := l10n.New(l10n.English)
-	first := renderDashboard(l, view, 80, 24, 0, now, false)
+	first := renderDashboard(l, view, 80, 24, 0, 0, now, false)
 	for _, want := range []string{"73%", "28%", "Token usage", "Su ", "Mo ", "Tu ", "We ", "Th ", "Fr ", "Sa ", "Page 1/3"} {
 		if !strings.Contains(first, want) {
 			t.Errorf("80x24 must show a full quota/heatmap card; missing %q", want)
 		}
 	}
-	second := renderDashboard(l, view, 80, 24, 1, now, false)
-	third := renderDashboard(l, view, 80, 24, -1, now, false)
+	second := renderDashboard(l, view, 80, 24, 1, 0, now, false)
+	third := renderDashboard(l, view, 80, 24, -1, 0, now, false)
 	if !strings.Contains(second, "Claude") || strings.Contains(second, "Codex") || !strings.Contains(third, "Grok") {
 		t.Fatal("provider cards must remain reachable in both page directions")
 	}
@@ -86,7 +131,7 @@ func TestHistoryDashboardFitsAndPaginates(t *testing.T) {
 		for _, lang := range l10n.Languages() {
 			var allPages strings.Builder
 			for page := 0; page < 48; page++ {
-				frame := renderDashboard(l10n.New(lang), view, size[0], size[1], page, now, true)
+				frame := renderDashboard(l10n.New(lang), view, size[0], size[1], page, 0, now, true)
 				allPages.WriteString(ansi.ReplaceAllString(frame, ""))
 				lines := strings.Split(frame, "\r\n")
 				if len(lines) > size[1] {
@@ -113,12 +158,12 @@ func TestNarrowDashboardKeepsRefreshSubtitle(t *testing.T) {
 	for _, language := range l10n.Languages() {
 		l := l10n.New(language)
 		view := historyRenderFixture(now)
-		lines := strings.Split(renderDashboard(l, view, 40, 18, 0, now, false), "\r\n")
+		lines := strings.Split(renderDashboard(l, view, 40, 18, 0, 0, now, false), "\r\n")
 		if !strings.Contains(lines[1], l.TUI("auto")+" 5m0s") {
 			t.Errorf("%s: refresh interval was clipped: %q", language, lines[1])
 		}
 		view.Refreshing = true
-		lines = strings.Split(renderDashboard(l, view, 40, 18, 0, now, false), "\r\n")
+		lines = strings.Split(renderDashboard(l, view, 40, 18, 0, 0, now, false), "\r\n")
 		if !strings.Contains(lines[1], l.TUI("refreshing")) {
 			t.Errorf("%s: refresh state was clipped: %q", language, lines[1])
 		}
@@ -155,7 +200,7 @@ func TestExportHistoryPreview(t *testing.T) {
 		for _, lang := range []l10n.Language{l10n.English, l10n.SimplifiedChinese} {
 			for _, color := range []bool{false, true} {
 				for page := 0; page < 2; page++ {
-					frame := renderDashboard(l10n.New(lang), historyRenderFixture(now), size[0], size[1], page, now, color)
+					frame := renderDashboard(l10n.New(lang), historyRenderFixture(now), size[0], size[1], page, 0, now, color)
 					ext := "txt"
 					if color {
 						ext = "ansi"
