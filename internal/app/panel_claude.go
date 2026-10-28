@@ -33,8 +33,8 @@ func panelClaudeQuota(c *ui.Context, l l10n.Localizer, snap runway.Snapshot, act
 		}
 		ui.Column(c).Gap(12).Children(func() {
 			now := time.Now()
-			for i, m := range g.Meters {
-				grokMeterRow(c, l, m, i == 0, now, rs)
+			for _, m := range g.Meters {
+				grokMeterRow(c, l, m, true, now, rs)
 			}
 			if g.ExtraUsage != "" {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {

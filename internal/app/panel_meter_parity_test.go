@@ -2,6 +2,8 @@ package app
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -10,6 +12,49 @@ import (
 	"github.com/licoy/quosparr/internal/runway"
 	"github.com/licoy/quosparr/internal/store"
 )
+
+func TestClaudeQuotaShowsRemainingForEveryWindow(t *testing.T) {
+	for _, language := range []l10n.Language{l10n.English, l10n.SimplifiedChinese} {
+		l := l10n.New(language)
+		now := time.Now()
+		snap := runway.Snapshot{Claude: runway.ClaudeState{
+			Availability: runway.ClaudeReady,
+			Meters: []runway.Meter{
+				{Title: runway.ShortWindowTitle(l, runway.FiveHourMinutes), UsedPercent: 38, RemainingPercent: 62, ResetsAt: now.Add(time.Hour)},
+				{Title: runway.ShortWindowTitle(l, runway.WeeklyMinutes), UsedPercent: 16, RemainingPercent: 84, ResetsAt: now.Add(5 * 24 * time.Hour), Projection: &runway.BurnProjection{ProjectedUsedPercentAtReset: 30}},
+				{Title: "Sonnet", UsedPercent: 25, RemainingPercent: 75},
+			},
+			ExtraUsage: "$2.00",
+		}}
+		tt := ui.NewTester(func(c *ui.Context) {
+			first := true
+			ui.Column(c).Fill().Children(func() {
+				panelClaudeQuota(c, l, snap, PanelActions{}, &first, &panelState{}, resetSwitch{}, false)
+			})
+		}, 400, 300)
+		for _, m := range snap.Claude.Meters {
+			want := l10n.Format("%d%% %s", m.RemainingPercent, l.Text(l10n.KeyLeft))
+			used := l10n.Format("%d%% %s", m.UsedPercent, l.Text(l10n.KeyUsed))
+			if !tt.HasText(want) || tt.HasText(used) {
+				t.Fatalf("%s quota must show remaining; texts %q", m.Title, tt.Texts())
+			}
+		}
+		if !tt.HasText("$2.00") {
+			t.Fatal("extra usage is missing")
+		}
+		if tt.HasText(l.Text(l10n.KeyBurnRate)) {
+			t.Fatal("changing the quota direction added a projection row")
+		}
+		if dir := os.Getenv("RUNWAY_CLAUDE_QUOTA_QA"); dir != "" {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			tt.SetDark(true)
+			tt.SetScale(2)
+			exportReviewPNG(t, tt, filepath.Join(dir, string(language)+"-remaining.png"))
+		}
+	}
+}
 
 func TestPanelParityQuotaShowsProjectionAndLocalizesLiveReset(t *testing.T) {
 	l := l10n.New(l10n.SimplifiedChinese)
