@@ -30,17 +30,20 @@ func verifyArchive(file, target string) error {
 	system, arch, _ := strings.Cut(target, "-")
 	executable := "quosparr"
 	sqlite := "libmygo-sqlite3.so"
+	tui := "quosparr-tui"
 	if system == "windows" {
 		executable = "Quosparr.exe"
 		sqlite = "mygo-sqlite3.dll"
+		tui += ".exe"
 	}
 	if system == "darwin" {
 		executable = "Quosparr.app/Contents/MacOS/Quosparr"
 		sqlite = "Quosparr.app/Contents/Resources/libmygo-sqlite3.dylib"
+		tui = "Quosparr.app/Contents/Resources/quosparr-tui"
 	}
 	seen := map[string]bool{}
 	links := map[string]string{}
-	required := map[string]bool{executable: false, sqlite: false}
+	required := map[string]bool{executable: false, sqlite: false, tui: false}
 	if system == "windows" {
 		delete(required, sqlite)
 	}

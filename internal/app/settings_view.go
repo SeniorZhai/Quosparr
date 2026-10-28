@@ -40,6 +40,7 @@ type Actions struct {
 	// TestNotification sends a test notification and says what happened.
 	TestNotification func() string
 	CheckForUpdates  func()
+	InstallTUI       func() (string, error)
 	// OpenFolder opens a folder in the file manager.
 	OpenFolder func(path string)
 }
@@ -168,18 +169,19 @@ type settingsUI struct {
 	mcp      *settingsMCP
 	pricing  *settingsPricing
 
-	draft         ProxyDraft
-	draftReady    bool
-	testURL       string
-	loadedCreds   ProxyCredentials
-	proxyTask     Task
-	proxyResult   ProxySaveResult
-	testTask      Task
-	selfCheckTask Task
-	proxyMsg      string
-	proxyMsgErr   bool
-	proxyMsgGen   int
-	toast         string
+	draft          ProxyDraft
+	draftReady     bool
+	testURL        string
+	loadedCreds    ProxyCredentials
+	proxyTask      Task
+	proxyResult    ProxySaveResult
+	testTask       Task
+	selfCheckTask  Task
+	tuiInstallTask Task
+	proxyMsg       string
+	proxyMsgErr    bool
+	proxyMsgGen    int
+	toast          string
 
 	pickingColor bool
 	customColor  ui.Color
@@ -196,6 +198,9 @@ type settingsUI struct {
 }
 
 func newSettingsUI(s *Settings, opts SettingsOptions) *settingsUI {
+	if opts.Actions.InstallTUI == nil {
+		opts.Actions.InstallTUI = installBundledTUI
+	}
 	return &settingsUI{s: s, opts: opts}
 }
 
@@ -684,6 +689,7 @@ func (u *settingsUI) advancedPage(c *ui.Context) {
 			}
 		})
 	})
+	u.tuiGroup(c)
 	u.remoteQuotaGroup(c)
 }
 

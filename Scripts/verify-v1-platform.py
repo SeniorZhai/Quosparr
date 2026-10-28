@@ -97,7 +97,7 @@ def verify_deb(config, stage, arch):
             data, mode = installed[name]
             if digest(data) != digest(path.read_bytes()):
                 raise ValueError(f"installer/archive payload mismatch: {name}")
-            if path.name in {"quosparr", "libmygo-sqlite3.so"} and not mode & 0o111:
+            if path.name in {"quosparr", "quosparr-tui", "libmygo-sqlite3.so"} and not mode & 0o111:
                 raise ValueError(f"runtime is not executable: {name}")
     desktop = installed["usr/share/applications/quosparr.desktop"][0].decode()
     if "Exec=/opt/quosparr/quosparr" not in desktop or "Name=Quosparr\n" not in desktop:
@@ -113,6 +113,16 @@ def verify(config, stage, target):
     if any(path.name in extra_licenses for path in stage.rglob("*")):
         raise ValueError("source-only license files must not be copied into the package")
     system, arch = target.split("/")
+    tui = stage / ("quosparr-tui.exe" if system == "windows" else "quosparr-tui")
+    if not tui.is_file():
+        raise ValueError("bundled TUI is missing")
+    if system == "windows":
+        data = tui.read_bytes()
+        if len(data) < 64 or data[:2] != b"MZ":
+            raise ValueError("TUI must use the Windows console subsystem")
+        pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
+        if pe_offset + 94 > len(data) or data[pe_offset:pe_offset+4] != b"PE\0\0" or struct.unpack_from("<H", data, pe_offset+24+68)[0] != 3:
+            raise ValueError("TUI must use the Windows console subsystem")
     if system == "linux":
         verify_deb(config, stage, arch)
     else:

@@ -28,11 +28,15 @@ class StageConfigTests(unittest.TestCase):
   with tempfile.TemporaryDirectory(prefix="quosparr-config-test-") as temporary:
    env=os.environ.copy()
    env.update(V1_CONFIG_PATH=str(root/"mygo.json"),V1_UPDATE_CHANNEL="stable",V1_DEVELOPMENT_PACKAGE="0")
+   tui=pathlib.Path(temporary)/"quosparr-tui"
+   tui.write_bytes(b"fixture-tui")
+   env["V1_TUI_RESOURCE"]=str(tui)
    subprocess.run(["python3",str(root/"Scripts/stage-v1-config.py"),str(root),temporary],env=env,check=True)
    staged=json.loads((pathlib.Path(temporary)/"mygo.json").read_text())
    self.assertEqual(staged["updates"]["github"],"Licoy/Quosparr")
    self.assertEqual(staged["updates"]["tagPrefix"],"v")
    self.assertNotIn("url",staged["updates"])
+   self.assertIn(str(tui.resolve()),staged["resources"])
 
  def test_beta_uses_fixed_prerelease_feed_and_dev_disables_updates(self):
   root=pathlib.Path(__file__).resolve().parents[2]

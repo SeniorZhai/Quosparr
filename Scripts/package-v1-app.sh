@@ -30,7 +30,8 @@ if [[ "$DEVELOPMENT" == 0 ]]; then
   export MYGO_UPDATER_PRIVATE_KEY="${MYGO_UPDATE_PRIVATE_KEY:-${MYGO_UPDATER_PRIVATE_KEY:-}}"
   [[ -n "$MYGO_UPDATER_PRIVATE_KEY" ]] || { printf 'Missing MYGO_UPDATE_PRIVATE_KEY\n' >&2; exit 1; }
 fi
-V1_DEVELOPMENT_PACKAGE="$DEVELOPMENT" python3 "$ROOT/Scripts/stage-v1-config.py" "$ROOT" "$CONFIG_STAGE"
+GOOS=darwin GOARCH="$GOARCH" CGO_ENABLED=0 go build -trimpath -o "$CONFIG_STAGE/quosparr-tui" ./cmd/quosparr-tui
+V1_TUI_RESOURCE="$CONFIG_STAGE/quosparr-tui" V1_DEVELOPMENT_PACKAGE="$DEVELOPMENT" python3 "$ROOT/Scripts/stage-v1-config.py" "$ROOT" "$CONFIG_STAGE"
 mkdir -p "$WORK/config"
 cp "$CONFIG_STAGE/mygo.json" "$WORK/config/mygo.json"
 if [[ "$DEVELOPMENT" == 1 ]]; then
@@ -90,6 +91,7 @@ plutil -create xml1 "$WIDGET_ENTITLEMENTS"
   -c 'Add :com.apple.security.temporary-exception.files.home-relative-path.read-only array' \
   -c 'Add :com.apple.security.temporary-exception.files.home-relative-path.read-only:0 string /.quosparr/widget-snapshot.json' \
   "$WIDGET_ENTITLEMENTS"
+runway_codesign "$CONTENTS/Resources/quosparr-tui" "$HOST_ID.tui"
 runway_codesign "$BRIDGE" "$HOST_ID.widget-bridge"
 runway_codesign "$CONTENTS/Resources/libmygo-sqlite3.dylib" "$HOST_ID.sqlite"
 runway_codesign "$WIDGET" "$HOST_ID.widget" "$WIDGET_ENTITLEMENTS"

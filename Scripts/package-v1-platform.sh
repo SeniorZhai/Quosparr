@@ -16,7 +16,10 @@ mkdir -p "$ROOT/.build"
 CONFIG_STAGE="$(mktemp -d "$ROOT/.build/v1-package-config.XXXXXX")"
 trap 'rm -rf "$CONFIG_STAGE"' EXIT
 [[ "$(go list -m -f '{{.Version}}' github.com/egoist/mygo)" == v0.6.2 ]]
-V1_DEVELOPMENT_PACKAGE="$DEVELOPMENT" python3 "$ROOT/Scripts/stage-v1-config.py" "$ROOT" "$CONFIG_STAGE"
+TUI_NAME=quosparr-tui
+[[ "$TARGET" != windows/* ]] || TUI_NAME=quosparr-tui.exe
+GOOS="${TARGET%/*}" GOARCH="${TARGET#*/}" CGO_ENABLED=0 go build -trimpath -o "$CONFIG_STAGE/$TUI_NAME" ./cmd/quosparr-tui
+V1_TUI_RESOURCE="$CONFIG_STAGE/$TUI_NAME" V1_DEVELOPMENT_PACKAGE="$DEVELOPMENT" python3 "$ROOT/Scripts/stage-v1-config.py" "$ROOT" "$CONFIG_STAGE"
 mkdir -p "$WORK/config"
 cp "$CONFIG_STAGE/mygo.json" "$WORK/config/mygo.json"
 if [[ "$DEVELOPMENT" == 1 ]]; then

@@ -16,12 +16,13 @@ bash "$ROOT/Scripts/verify-packaged-app.sh" "$APP" "$ARCH" local
 [[ "$(plutil -extract LSMinimumSystemVersion raw "$WIDGET/Contents/Info.plist")" == 14.0 ]]
 [[ "$(plutil -extract RunwayWidgetStorageMode raw "$CONTENTS/Info.plist")" == local ]]
 [[ ! -e "$CONTENTS/Frameworks/Sparkle.framework" ]]
-for file in "$CONTENTS/MacOS/Quosparr" "$BRIDGE" "$SQLITE"; do
+for file in "$CONTENTS/MacOS/Quosparr" "$BRIDGE" "$SQLITE" "$CONTENTS/Resources/quosparr-tui"; do
   [[ -f "$file" ]]
   [[ " $(lipo -archs "$file") " == *" $ARCH "* ]]
   codesign --verify --strict "$file"
 done
 go version -m "$CONTENTS/MacOS/Quosparr" | grep -Fq 'github.com/licoy/quosparr'
+go version -m "$CONTENTS/Resources/quosparr-tui" | grep -Fq "github.com/licoy/quosparr/cmd/quosparr-tui"
 nm -gU "$BRIDGE" | grep -Fq _quosparr_widget_query
 nm -gU "$BRIDGE" | grep -Fq _quosparr_widget_reload
 HOST_ENTITLEMENTS="$(codesign -d --entitlements :- "$APP" 2>/dev/null)"

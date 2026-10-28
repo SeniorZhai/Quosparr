@@ -42,7 +42,7 @@ def deb_bytes(control, entries):
 
 class PlatformPackages(unittest.TestCase):
     def linux_fixture(self, stage, failure=None):
-        files = {"quosparr": b"fixture-executable", "libmygo-sqlite3.so": b"fixture-sqlite", "LICENSE": b"fixture-license"}
+        files = {"quosparr": b"fixture-executable", "libmygo-sqlite3.so": b"fixture-sqlite", "quosparr-tui": b"fixture-tui", "LICENSE": b"fixture-license"}
         for name, data in files.items():
             (stage / name).write_bytes(data)
         entries = [("opt/quosparr/" + name, data, 0o755) for name, data in files.items()]
@@ -84,7 +84,7 @@ class PlatformPackages(unittest.TestCase):
     def test_windows_review_archive_contains_only_runtime_payload(self):
         with tempfile.TemporaryDirectory() as temporary:
             stage = pathlib.Path(temporary)
-            files = {"Quosparr.exe": b"application-with-embedded-sqlite", "LICENSE": b"license"}
+            files = {"Quosparr.exe": b"application-with-embedded-sqlite", "quosparr-tui.exe": b"console", "LICENSE": b"license"}
             for name, data in files.items():
                 (stage / name).write_bytes(data)
             (stage / "Quosparr Setup 1.0.0 amd64.exe").write_bytes(b"installer")
@@ -112,6 +112,12 @@ class PlatformPackages(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             stage = pathlib.Path(temporary)
             setup = stage / "Quosparr Setup 1.0.0 amd64.exe"
+            tui = bytearray(200)
+            tui[:2] = b"MZ"
+            struct.pack_into("<I", tui, 0x3c, 80)
+            tui[80:84] = b"PE\0\0"
+            struct.pack_into("<H", tui, 80+24+68, 3)
+            (stage / "quosparr-tui.exe").write_bytes(tui)
             setup.write_bytes(b"not-an-installer")
             with self.assertRaises(ValueError):
                 package.verify({"version": "1.0.0"}, stage, "windows/amd64")
@@ -121,6 +127,12 @@ class PlatformPackages(unittest.TestCase):
             data[80:84] = b"PE\0\0"
             setup.write_bytes(data)
             package.verify({"version": "1.0.0"}, stage, "windows/amd64")
+            struct.pack_into("<H", tui, 80+24+68, 2)
+            (stage / "quosparr-tui.exe").write_bytes(tui)
+            with self.assertRaisesRegex(ValueError, "console subsystem"):
+                package.verify({"version": "1.0.0"}, stage, "windows/amd64")
+            struct.pack_into("<H", tui, 80+24+68, 3)
+            (stage / "quosparr-tui.exe").write_bytes(tui)
             (stage / "mygo-sqlite3.dll").write_bytes(b"external DLL")
             with self.assertRaisesRegex(ValueError, "SQLite must be embedded"):
                 package.verify({"version": "1.0.0"}, stage, "windows/amd64")

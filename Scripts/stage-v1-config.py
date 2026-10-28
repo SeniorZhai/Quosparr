@@ -16,6 +16,11 @@ if int(config["macos"]["infoPlist"]["CFBundleVersion"]) < 100:
 config["main"] = str(root)
 config["icon"] = str(root / config["icon"])
 config["resources"] = [str(root / entry) for entry in config.get("resources", [])]
+if os.environ.get("V1_TUI_RESOURCE"):
+    tui = pathlib.Path(os.environ["V1_TUI_RESOURCE"])
+    if not tui.is_file():
+        raise SystemExit("TUI executable is missing")
+    config["resources"].append(str(tui.resolve()))
 if os.environ.get("V1_DEVELOPMENT_PACKAGE", "0") == "1":
     config.pop("updates", None)
 elif os.environ.get("V1_UPDATE_CHANNEL", "stable") == "beta":

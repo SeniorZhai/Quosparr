@@ -58,7 +58,7 @@ func TestDevelopmentPayloadValidationStillChecksArchitectureAndResources(t *test
 	}
 	archive := filepath.Join(dir, archiveName("1.0.0", "linux-amd64"))
 	args := []string{"verify-payload", "-config", cfg, "-dir", dir, "-targets", "linux-amd64"}
-	fixtureArchive(t, archive, []string{"quosparr", "libmygo-sqlite3.so"})
+	fixtureArchive(t, archive, []string{"quosparr", "quosparr-tui", "libmygo-sqlite3.so"})
 	if err := run(args); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestDevelopmentPayloadValidationStillChecksArchitectureAndResources(t *test
 		t.Fatal("development archive accepted without SQLite")
 	}
 	wrongArch := filepath.Join(dir, archiveName("1.0.0", "linux-arm64"))
-	fixtureArchive(t, wrongArch, []string{"quosparr", "libmygo-sqlite3.so"})
+	fixtureArchive(t, wrongArch, []string{"quosparr", "quosparr-tui", "libmygo-sqlite3.so"})
 	args[len(args)-1] = "linux-arm64"
 	if err := run(args); err == nil {
 		t.Fatal("development archive accepted with wrong architecture")
@@ -90,7 +90,7 @@ func TestManifestAuthenticatesFinalArchive(t *testing.T) {
 	cfg.Updates.GitHub = "Licoy/Quosparr"
 	t.Setenv("MYGO_UPDATE_PRIVATE_KEY", base64.StdEncoding.EncodeToString(key))
 	file := filepath.Join(dir, archiveName(cfg.Version, "linux-amd64"))
-	fixtureArchive(t, file, []string{"quosparr", "libmygo-sqlite3.so"})
+	fixtureArchive(t, file, []string{"quosparr", "quosparr-tui", "libmygo-sqlite3.so"})
 	if err := sign(cfg, dir, "linux-amd64"); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestNotesKeepManifestValid(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("MYGO_UPDATE_PRIVATE_KEY", base64.StdEncoding.EncodeToString(key))
-	fixtureArchive(t, filepath.Join(dir, archiveName("1.0.0", "linux-amd64")), []string{"quosparr", "libmygo-sqlite3.so"})
+	fixtureArchive(t, filepath.Join(dir, archiveName("1.0.0", "linux-amd64")), []string{"quosparr", "quosparr-tui", "libmygo-sqlite3.so"})
 	base := []string{"-config", cfgPath, "-dir", dir, "-targets", "linux-amd64"}
 	for _, command := range []string{"sign", "notes", "verify"} {
 		if err := run(append(append([]string{command}, base...), "-notes", notesPath)); err != nil {
@@ -153,7 +153,7 @@ func TestNotesKeepManifestValid(t *testing.T) {
 }
 func TestArchiveRejectsDuplicatePayload(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "test.tar.gz")
-	fixtureArchive(t, file, []string{"quosparr", "libmygo-sqlite3.so", "quosparr"})
+	fixtureArchive(t, file, []string{"quosparr", "quosparr-tui", "libmygo-sqlite3.so", "quosparr"})
 	if err := verifyArchive(file, "linux-amd64"); err == nil {
 		t.Fatal("duplicate payload accepted")
 	}
@@ -197,7 +197,7 @@ func TestManifestRejectsWrongDownloadHost(t *testing.T) {
 	cfg.Updates.PublicKey = base64.StdEncoding.EncodeToString(pub)
 	cfg.Updates.GitHub = "Licoy/Quosparr"
 	t.Setenv("MYGO_UPDATE_PRIVATE_KEY", base64.StdEncoding.EncodeToString(key))
-	fixtureArchive(t, filepath.Join(dir, archiveName(cfg.Version, "linux-amd64")), []string{"quosparr", "libmygo-sqlite3.so"})
+	fixtureArchive(t, filepath.Join(dir, archiveName(cfg.Version, "linux-amd64")), []string{"quosparr", "quosparr-tui", "libmygo-sqlite3.so"})
 	if err := sign(cfg, dir, "linux-amd64"); err != nil {
 		t.Fatal(err)
 	}
