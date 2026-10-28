@@ -13,6 +13,7 @@ import (
 // that are due: a passed quota reset, the refresh interval, the widget
 // interval and the reset-today feed.
 func (s *Service) Tick(now time.Time) {
+	s.noteLive()
 	s.mu.Lock()
 	snap := s.buildLocked(now)
 	if key := tickKey(snap); key != s.lastTickKey {

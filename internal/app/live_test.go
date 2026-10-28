@@ -87,6 +87,24 @@ func TestTrayFromStatusKeepsTheComponents(t *testing.T) {
 	}
 }
 
+func TestLiveSpeedIconsSitSideBySide(t *testing.T) {
+	v := runway.BuildStatusBar(l10n.New(l10n.English), runway.StatusInputs{Live: []runway.LivePart{
+		{Provider: store.ProviderCodex, Text: "42 tok/s"},
+		{Provider: store.ProviderClaude, Text: "8 tok/s"},
+		{Provider: store.ProviderGrok, Text: "3 tok/s"},
+	}})
+	row := TrayFromStatus(v)
+	if row.HideIcons || len(row.Components) != 3 {
+		t.Fatalf("row = %+v", row)
+	}
+	one := row
+	one.Components = row.Components[:1]
+	wide, narrow := trayContentWidth(row), trayContentWidth(one)
+	if wide < narrow+2*(trayIconSize+4) {
+		t.Fatalf("width %v is not three icons beside their rates, one is %v", wide, narrow)
+	}
+}
+
 func TestAlertNotificationUsesExistingKeys(t *testing.T) {
 	l := l10n.ForPreference(string(l10n.English), nil)
 	threshold := 80

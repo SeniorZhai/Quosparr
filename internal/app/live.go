@@ -24,6 +24,7 @@ import (
 	"github.com/licoy/quosparr/internal/export/swiftjson"
 	"github.com/licoy/quosparr/internal/grok"
 	"github.com/licoy/quosparr/internal/l10n"
+	"github.com/licoy/quosparr/internal/livespeed"
 	"github.com/licoy/quosparr/internal/netx"
 	"github.com/licoy/quosparr/internal/platform"
 	"github.com/licoy/quosparr/internal/pricing"
@@ -190,6 +191,7 @@ type liveApp struct {
 	alertDispatch  *alertDispatch
 	version        string
 	langs          []string
+	liveSpeed      *livespeed.Monitor
 }
 
 var (
@@ -260,8 +262,28 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 			deliverEvent(opts, e)
 		}
 	}}
+	speedMon := livespeed.Start(livespeed.Homes{
+		Codex:          platform.CodexDir(home),
+		Grok:           gstore.OfficialHome(),
+		ClaudeProjects: claude.ProjectsDirs(cstore.ConfigDir(), home),
+	})
 	svc = runway.New(runway.Options{
 		PricingVersion: func() string { return priceSource.PriceBook(context.Background()).Version() },
+		LiveSpeed: func() []runway.LivePart {
+			parts := speedMon.Current()
+			if len(parts) == 0 {
+				return nil
+			}
+			out := make([]runway.LivePart, 0, len(parts))
+			for _, part := range parts {
+				provider := store.Provider(part.Source)
+				if provider != store.ProviderCodex && provider != store.ProviderClaude && provider != store.ProviderGrok {
+					continue
+				}
+				out = append(out, runway.LivePart{Provider: provider, Text: part.Text})
+			}
+			return out
+		},
 		Sources: runway.NewLiveSources(runway.LiveConfig{
 			Store: codexStore, CodexHome: platform.CodexDir(home),
 			Quota: codexapi.QuotaClient{}, Refresher: codexapi.TokenRefresher{}, Repo: repo, Prices: priceSource,
@@ -289,6 +311,7 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 	rt := &liveApp{
 		host: opts.Host, pricing: prices, svc: svc, codex: codexStore, grokMod: mod, grok: bridge, claudeMod: cmod, claudeB: cbridge, reset: reset,
 		repo: repo, widgets: widgets, dispatch: dispatch, widgetDispatch: widgetUI, alertDispatch: alertUI, version: opts.Version, langs: langs,
+		liveSpeed: speedMon,
 	}
 	rt.claudeDesktop = newClaudeDesktopManager(home, cmod)
 	bridge.pricingSnapshot = prices.manager.Snapshot
@@ -330,6 +353,7 @@ func (rt *liveApp) stop() {
 		rt.pricing.close()
 	}
 	rt.closePreferences()
+	rt.liveSpeed.Close()
 	rt.svc.Close()
 	if rt.repo != nil {
 		_ = rt.repo.Close()

@@ -42,6 +42,7 @@ func (s *Service) buildLocked(now time.Time) Snapshot {
 		Prefs: s.prefs, Provider: s.prefs.SelectedProvider,
 		CodexText: snap.Codex.StatusText, CodexMeters: snap.Codex.Meters,
 		Grok: snap.Grok, Claude: snap.Claude, Remote: snap.Remote, Now: now,
+		Live: s.live,
 	}
 	snap.StatusBar = BuildStatusBar(lc, in)
 	if s.prefs.FloatingWindow.Enabled {

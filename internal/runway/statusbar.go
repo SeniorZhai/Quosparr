@@ -84,6 +84,15 @@ type StatusInputs struct {
 	// Remote is the quota-only providers, keyed by provider.
 	Remote map[store.Provider]RemoteQuota
 	Now    time.Time
+	// Live replaces the quota while at least one agent has a tok/s to show.
+	// Each entry is drawn beside the others, icon then its own rate.
+	Live []LivePart
+}
+
+// LivePart is one agent's menu-bar tok/s.
+type LivePart struct {
+	Provider store.Provider
+	Text     string
 }
 
 // GrokStatusText is the status text of Grok: the countdown of the first
@@ -219,6 +228,9 @@ type StatusBarCell struct {
 	// RingText is the value inside a ring: the percentage without its sign,
 	// empty for a balance, whose amount does not fit.
 	RingText string
+	// Gauge marks a live rate whose provider has a quota window; Remaining
+	// is that window's, drawn as a bar under the rate.
+	Gauge bool
 }
 
 // StatusBarComponent is one component of the status item: a provider on its
@@ -240,10 +252,40 @@ type StatusBarView struct {
 	Tooltip    string
 }
 
+// liveStatus is the speed row: one icon and rate per running agent, with
+// the quota left of its main window under it where one is known.
+func liveStatus(lc l10n.Localizer, in StatusInputs) (StatusBarView, bool) {
+	v := StatusBarView{Style: store.StatusBarStyleText}
+	tips := []string{"Quosparr"}
+	window := in.Prefs.StatusBarQuotaWindow()
+	for _, part := range in.Live {
+		if part.Text == "" || !part.Provider.Valid() || part.Provider.RemoteQuota() {
+			continue
+		}
+		cell := StatusBarCell{
+			Provider: part.Provider, Percent: part.Text, Countdown: part.Text,
+			MeterText: part.Text, BatteryText: part.Text,
+		}
+		if picked := statusMeters(metersOf(in, part.Provider), preferredOf(part.Provider), window, false); len(picked) == 1 && !picked[0].Balance {
+			cell.Gauge, cell.Remaining, cell.Health = true, picked[0].RemainingPercent, picked[0].Health
+		}
+		v.Components = append(v.Components, StatusBarComponent{Provider: part.Provider, Cells: []StatusBarCell{cell}})
+		tips = append(tips, lc.Text(providerStatusKey(part.Provider))+" "+part.Text)
+	}
+	if len(v.Components) == 0 {
+		return StatusBarView{}, false
+	}
+	v.Tooltip = strings.Join(tips, "\n")
+	return v, true
+}
+
 // BuildStatusBar computes the status item content for the preferences.
 func BuildStatusBar(lc l10n.Localizer, in StatusInputs) StatusBarView {
 	layout := in.Prefs.StatusBar
 	v := StatusBarView{Style: in.Prefs.StatusBarDisplayStyle, Battery: layout.Battery, HideIcons: layout.HideIcons, RingValues: layout.RingValues}
+	if live, ok := liveStatus(lc, in); ok {
+		return live
+	}
 	tips := []string{"Quosparr"}
 	window := in.Prefs.StatusBarQuotaWindow()
 	for _, group := range statusGroups(in) {

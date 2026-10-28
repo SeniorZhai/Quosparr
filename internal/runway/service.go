@@ -49,6 +49,8 @@ type Options struct {
 	// RemoteQuotaDir is ~/.quosparr, where Kimi, DeepSeek and Copilot keys live.
 	// Empty disables those fetches.
 	RemoteQuotaDir string
+	// LiveSpeed is the cached per-agent tok/s. An empty result keeps the quota.
+	LiveSpeed func() []LivePart
 
 	// WidgetSink receives the widget snapshot when the widget schedule is
 	// due; nil disables widgets. WidgetRequirements is the data the active
@@ -103,6 +105,8 @@ type Service struct {
 	prefs  store.Preferences
 	lc     l10n.Localizer
 	remote map[store.Provider]remoteHeld
+	// live is the last sampled per-agent tok/s. Empty keeps the quota bar.
+	live []LivePart
 
 	// epoch is the account-state generation (Swift accountStateGeneration).
 	// Every result carries the epoch and the account identity it was fetched
@@ -370,8 +374,20 @@ func (s *Service) publishLoop() {
 
 // publish builds a snapshot of the current state and hands it out.
 func (s *Service) publish() {
+	s.noteLive()
 	s.mu.Lock()
 	s.publishLocked()
+	s.mu.Unlock()
+}
+
+// noteLive copies the cached tok/s before the state lock is taken.
+func (s *Service) noteLive() {
+	if s.opts.LiveSpeed == nil {
+		return
+	}
+	parts := s.opts.LiveSpeed()
+	s.mu.Lock()
+	s.live = append([]LivePart(nil), parts...)
 	s.mu.Unlock()
 }
 

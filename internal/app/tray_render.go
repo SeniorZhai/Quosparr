@@ -117,6 +117,9 @@ func layoutTrayComponent(d trayPen, r TrayRender, comp runway.StatusBarComponent
 	}
 	start := x
 	icons := !r.HideIcons
+	if len(comp.Cells) == 1 && comp.Cells[0].Gauge {
+		return trayLiveGauge(d, comp.Cells[0], x, icons)
+	}
 	if r.Style == store.StatusBarStyleRings {
 		if r.RingValues && ringValuesFit(comp.Cells) {
 			return trayValueRings(d, comp.Cells, x, icons)
@@ -322,6 +325,20 @@ func trayText(d trayPen, cells []runway.StatusBarCell, x float32) float32 {
 	return w
 }
 
+// ---- Live rate with its quota: the logo and rate raised, a gauge under
+// both that keeps clear of them.
+
+func trayLiveGauge(d trayPen, c runway.StatusBarCell, x float32, icons bool) float32 {
+	start, cy := x, float32(8.5)
+	if icons && c.Provider != "" {
+		d.icon(c.Provider, x, cy, 11)
+		x += 11 + 3.5
+	}
+	x += d.text(c.Percent, x, cy, 11, 650, 1, 96)
+	d.gauge(ui.Rect{X: start, Y: 16, W: x - start, H: 3.5}, c)
+	return x - start
+}
+
 // trayPen draws in a layer, or only measures without a painter.
 type trayPen struct {
 	p     *ui.Painter
@@ -418,6 +435,20 @@ func (d trayPen) bar(x, cy, w, h float32, c runway.StatusBarCell) {
 	if fill, level := d.level(c); level > 0 && fill.A > 0 {
 		r.W = max(h, w*level)
 		d.p.Fill(r, fill, h/2)
+	}
+}
+
+// gauge is an outlined bar in the ink, white on a dark menu bar: the part
+// left is filled, the part used keeps only the outline.
+func (d trayPen) gauge(r ui.Rect, c runway.StatusBarCell) {
+	if !d.inks() {
+		return
+	}
+	d.p.Stroke(r, d.paint.ink.Alpha(0.55), r.H/2, 1)
+	if level := float32(min(100, max(0, c.Remaining))) / 100; level > 0 {
+		f := r
+		f.W = max(r.H, r.W*level)
+		d.p.Fill(f, d.paint.ink, r.H/2)
 	}
 }
 

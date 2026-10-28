@@ -147,6 +147,96 @@ func TestStatusBarRingTextLeavesBalancesOut(t *testing.T) {
 	}
 }
 
+func TestStatusBarLiveSpeedReplacesEveryStyle(t *testing.T) {
+	five := testMeter("5小时", 20, FiveHourMinutes, SourceStandard)
+	base := store.DefaultPreferences()
+	base.StatusBar.HideIcons = true
+	in := StatusInputs{Prefs: base, Provider: store.ProviderCodex, CodexMeters: []Meter{five}, Now: time.Now(),
+		Live: []LivePart{{Provider: store.ProviderCodex, Text: "42 tok/s"}}}
+	for _, st := range store.StatusBarStyles() {
+		in.Prefs.StatusBarDisplayStyle = st
+		v := BuildStatusBar(zh, in)
+		if v.Style != store.StatusBarStyleText || v.HideIcons || len(v.Components) != 1 || len(v.Components[0].Cells) != 1 {
+			t.Fatalf("%s view = %+v", st, v)
+		}
+		if v.Components[0].Provider != store.ProviderCodex {
+			t.Fatalf("%s provider = %s", st, v.Components[0].Provider)
+		}
+		c := v.Components[0].Cells[0]
+		if c.Provider != store.ProviderCodex || c.Percent != "42 tok/s" || c.Countdown != "42 tok/s" || c.MeterText != "42 tok/s" || c.BatteryText != "42 tok/s" {
+			t.Fatalf("%s cell = %+v", st, c)
+		}
+		if !c.Gauge || c.Remaining != 80 || c.Health != five.Health {
+			t.Fatalf("%s gauge = %+v", st, c)
+		}
+		if v.Tooltip != "Quosparr\nCodex 42 tok/s" {
+			t.Fatalf("%s tooltip = %q", st, v.Tooltip)
+		}
+	}
+	in.Live = []LivePart{
+		{Provider: store.ProviderCodex, Text: "42 tok/s"},
+		{Provider: store.ProviderGrok, Text: "18 tok/s"},
+	}
+	v := BuildStatusBar(zh, in)
+	if v.HideIcons || len(v.Components) != 2 || v.Components[0].Provider != store.ProviderCodex || v.Components[1].Provider != store.ProviderGrok {
+		t.Fatalf("side by side = %+v", v.Components)
+	}
+	if v.Components[0].Cells[0].Percent != "42 tok/s" || v.Components[1].Cells[0].Percent != "18 tok/s" {
+		t.Fatalf("rates = %+v", v.Components)
+	}
+	if len(v.Components[0].Cells) != 1 || len(v.Components[1].Cells) != 1 {
+		t.Fatalf("stacked cells = %+v", v.Components)
+	}
+	if v.Components[1].Cells[0].Gauge {
+		t.Fatalf("grok without a reading has a gauge: %+v", v.Components[1].Cells[0])
+	}
+	in.Live = nil
+	in.Prefs.StatusBarDisplayStyle = store.StatusBarStyleMeters
+	v = BuildStatusBar(zh, in)
+	if v.Style != store.StatusBarStyleMeters || len(v.Components) != 1 || v.Components[0].Cells[0].Percent != "80%" {
+		t.Fatalf("quota = %+v", v)
+	}
+	in.Live = []LivePart{{Provider: store.ProviderCodex, Text: ""}}
+	v = BuildStatusBar(zh, in)
+	if v.Components[0].Cells[0].Percent != "80%" {
+		t.Fatalf("blank speed hid the quota: %+v", v.Components[0].Cells[0])
+	}
+}
+
+func TestPublishPutsLiveSpeedOnTheStatusBar(t *testing.T) {
+	prefs := store.DefaultPreferences()
+	prefs.FloatingWindow.Enabled = true
+	var parts []LivePart
+	s := New(Options{
+		Preferences: prefs,
+		Now:         func() time.Time { return time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC) },
+		LiveSpeed:   func() []LivePart { return parts },
+	})
+	defer s.Close()
+	parts = []LivePart{
+		{Provider: store.ProviderClaude, Text: "42.4 tok/s"},
+		{Provider: store.ProviderGrok, Text: "9 tok/s"},
+	}
+	s.publish()
+	snap := s.Snapshot()
+	bar := snap.StatusBar
+	if bar.HideIcons || bar.Style != store.StatusBarStyleText || len(bar.Components) != 2 {
+		t.Fatalf("live = %+v", bar)
+	}
+	if bar.Components[0].Provider != store.ProviderClaude || bar.Components[1].Provider != store.ProviderGrok {
+		t.Fatalf("providers = %+v", bar.Components)
+	}
+	if len(snap.Floating.Providers) != 1 || snap.Floating.Providers[0].Provider != store.ProviderCodex {
+		t.Fatalf("floating = %+v", snap.Floating)
+	}
+	parts = nil
+	s.publish()
+	bar = s.Snapshot().StatusBar
+	if bar.Style != store.StatusBarStyleMeters || bar.Components[0].Cells[0].Percent == "42.4 tok/s" {
+		t.Fatalf("quota did not return: %+v", bar)
+	}
+}
+
 func TestStatusBarFollowsTheSelectedProvider(t *testing.T) {
 	week := testMeter("7-day", 11, WeeklyMinutes, SourceStandard)
 	v := BuildStatusBar(zh, StatusInputs{Prefs: store.DefaultPreferences(), Provider: store.ProviderClaude,
