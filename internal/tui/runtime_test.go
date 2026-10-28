@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -13,12 +14,12 @@ import (
 
 func TestRuntimeRefreshScheduleAndCancellation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		calls := 0
+		var calls atomic.Int32
 		release := make(chan struct{})
 		r := &Runtime{}
 		r.start(context.Background(), Config{Providers: []store.Provider{store.ProviderCodex}, IntervalSeconds: 60, Language: l10n.English},
 			func(ctx context.Context, _ store.Provider) providerReading {
-				calls++
+				calls.Add(1)
 				select {
 				case <-release:
 				case <-ctx.Done():
@@ -26,7 +27,7 @@ func TestRuntimeRefreshScheduleAndCancellation(t *testing.T) {
 				return providerReading{status: "ready"}
 			})
 		synctest.Wait()
-		if calls != 1 || !r.View().Refreshing || !r.View().NextRefresh.IsZero() {
+		if calls.Load() != 1 || !r.View().Refreshing || !r.View().NextRefresh.IsZero() {
 			t.Fatal("startup must begin one refresh without a guessed deadline")
 		}
 		for range 5 {
@@ -36,13 +37,13 @@ func TestRuntimeRefreshScheduleAndCancellation(t *testing.T) {
 		release <- struct{}{}
 		synctest.Wait()
 		first := r.View()
-		if calls != 1 || first.Refreshing || !first.LastRefresh.Equal(time.Now()) || first.NextRefresh.Sub(first.LastRefresh) != time.Minute {
+		if calls.Load() != 1 || first.Refreshing || !first.LastRefresh.Equal(time.Now()) || first.NextRefresh.Sub(first.LastRefresh) != time.Minute {
 			t.Fatalf("completed refresh did not arm its next deadline: %+v", first)
 		}
 		time.Sleep(10 * time.Second)
 		r.Refresh()
 		synctest.Wait()
-		if calls != 2 || !r.View().Refreshing {
+		if calls.Load() != 2 || !r.View().Refreshing {
 			t.Fatal("manual refresh was not immediate")
 		}
 		release <- struct{}{}
@@ -53,18 +54,18 @@ func TestRuntimeRefreshScheduleAndCancellation(t *testing.T) {
 		}
 		time.Sleep(59 * time.Second)
 		synctest.Wait()
-		if calls != 2 {
+		if calls.Load() != 2 {
 			t.Fatal("automatic refresh fired early")
 		}
 		time.Sleep(time.Second)
 		r.Refresh()
 		synctest.Wait()
-		if calls != 3 || !r.View().Refreshing {
+		if calls.Load() != 3 || !r.View().Refreshing {
 			t.Fatal("simultaneous automatic/manual refresh should make one request")
 		}
 		r.Close()
 		synctest.Wait()
-		if calls != 3 {
+		if calls.Load() != 3 {
 			t.Fatal("close started another request")
 		}
 	})

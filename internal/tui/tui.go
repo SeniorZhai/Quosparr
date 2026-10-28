@@ -13,6 +13,7 @@ import (
 
 	"github.com/licoy/quosparr/internal/l10n"
 	"github.com/licoy/quosparr/internal/runway"
+	"github.com/licoy/quosparr/internal/store"
 	"golang.org/x/text/width"
 )
 
@@ -21,6 +22,7 @@ var ErrConfigure = errors.New("configure TUI")
 
 type View struct {
 	Floating        runway.FloatingView
+	History         map[store.Provider]TokenHistory
 	SourceAt        time.Time
 	LastRefresh     time.Time
 	NextRefresh     time.Time

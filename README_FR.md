@@ -141,6 +141,8 @@ L’assistant de configuration s’ouvre automatiquement si le TUI n’est pas e
 
 L’affichage se met à jour chaque seconde et s’adapte à la taille du terminal. Les requêtes de quota suivent l’intervalle enregistré dans le TUI, cinq minutes par défaut. Appuyez sur `r` pour actualiser, sur `n` / `p` / `Tab` pour parcourir les pages des fournisseurs dans un petit terminal, et sur `q`, `Esc` ou `Ctrl+C` pour quitter.
 
+Les cartes Codex, Claude et Grok affichent aussi une carte thermique des Token utilisés localement, par date UTC, pouvant couvrir plusieurs comptes. Les cartes étroites montrent une période plus courte. L’historique est actualisé toutes les cinq minutes, ou selon l’intervalle configuré s’il est plus long ; `r` l’actualise immédiatement. L’absence de données est distinguée d’une utilisation nulle enregistrée.
+
 Le fichier privé `~/.quosparr/tui/config.json` ne contient aucune clé. Les copies des identifiants du TUI sont conservées uniquement dans `~/.quosparr/accounts/<tui-id>/auth.json` (répertoire `0700`, fichier `0600` ; sous Windows, ACL protégé réservé à l’utilisateur actuel, avec héritage désactivé). L’import lit seulement les identifiants actuellement sélectionnés dans l’app de bureau et copie les champs nécessaires, sans modifier cette app ni la connexion officielle. En fonctionnement normal, le TUI n’actualise pas les jetons OAuth et ne modifie pas les connexions officielles ; lorsqu’ils expirent, reconnectez-vous via le CLI ou importez-les à nouveau.
 
 ## Widgets bureau

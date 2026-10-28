@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -25,17 +26,22 @@ type providerReading struct {
 
 // Runtime reads quota independently of the desktop app and never renews tokens.
 type Runtime struct {
-	mu         sync.Mutex
-	config     Config
-	lc         l10n.Localizer
-	readings   map[store.Provider]providerReading
-	last, next time.Time
-	refreshing bool
-	request    chan struct{}
-	done       chan struct{}
-	cancel     context.CancelFunc
-	live       *livespeed.Monitor
-	network    *netx.Context
+	mu                sync.Mutex
+	config            Config
+	lc                l10n.Localizer
+	readings          map[store.Provider]providerReading
+	last, next        time.Time
+	refreshing        bool
+	request           chan struct{}
+	done              chan struct{}
+	cancel            context.CancelFunc
+	live              *livespeed.Monitor
+	network           *netx.Context
+	history           map[store.Provider]TokenHistory
+	historyRefreshing bool
+	historyRequest    chan struct{}
+	historyDone       chan struct{}
+	historyCancel     context.CancelFunc
 }
 
 func Start(ctx context.Context, config Config, home string) *Runtime {
@@ -57,6 +63,7 @@ func Start(ctx context.Context, config Config, home string) *Runtime {
 	r.start(ctx, config, func(ctx context.Context, p store.Provider) providerReading {
 		return readProvider(ctx, home, p, config.Accounts[p], l10n.New(config.Language), time.Now())
 	})
+	r.startHistory(ctx, newHistoryReader(home).Read)
 	return r
 }
 
@@ -121,6 +128,13 @@ func (r *Runtime) start(ctx context.Context, config Config, fetch func(context.C
 func (r *Runtime) Refresh() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.historyRequest != nil && !r.historyRefreshing {
+		r.historyRefreshing = true
+		select {
+		case r.historyRequest <- struct{}{}:
+		default:
+		}
+	}
 	if r.refreshing {
 		return
 	}
@@ -132,15 +146,21 @@ func (r *Runtime) Refresh() {
 }
 
 func (r *Runtime) Close() {
+	if r.historyCancel != nil {
+		r.historyCancel()
+	}
 	r.cancel()
 	<-r.done
+	if r.historyDone != nil {
+		<-r.historyDone
+	}
 }
 
 func (r *Runtime) View() View {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	now := time.Now()
-	view := View{SourceAt: now, LastRefresh: r.last, NextRefresh: r.next,
+	view := View{SourceAt: now, LastRefresh: r.last, NextRefresh: r.next, History: maps.Clone(r.history),
 		IntervalSeconds: r.config.IntervalSeconds, Refreshing: r.refreshing}
 	live := r.live.Current()
 	for _, p := range r.config.Providers {
