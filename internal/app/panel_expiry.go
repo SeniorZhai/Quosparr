@@ -37,31 +37,18 @@ func expiryPhaseOf(expiresAt, now time.Time) expiryPhase {
 }
 
 func expiryLookOf(t *ui.Theme, phase expiryPhase) expiryLook {
-	light := !t.Dark
-	switch phase {
-	case expirySoon:
-		tint := sys(t, sysOrange)
-		return expiryLook{
-			ring:       pick(light, ui.RGBA(184, 97, 13, 1), tint),
-			foreground: pick(light, ui.RGBA(158, 82, 10, 1), tint),
-			fill:       tint.Alpha(pick[float32](light, 0.18, 0.26)),
-			stroke:     tint.Alpha(pick[float32](light, 0.40, 0.46)),
-		}
-	case expiryExpired:
-		tint := sys(t, sysRed)
-		return expiryLook{
-			ring:       tint,
-			foreground: pick(light, ui.RGBA(255, 255, 255, 1), ui.RGBA(255, 204, 204, 1)),
-			fill:       pick(light, ui.RGBA(199, 33, 28, 1), tint.Alpha(0.42)),
-			stroke:     tint.Alpha(0.55),
-		}
+	tint := t.Accent
+	fill := float32(0.16)
+	if phase == expirySoon {
+		fill = 0.24
+	} else if phase == expiryExpired {
+		fill = 0.36
 	}
-	tint := sys(t, sysGreen)
 	return expiryLook{
-		ring:       pick(light, ui.RGBA(26, 133, 71, 1), tint),
-		foreground: pick(light, ui.RGBA(20, 107, 56, 1), tint),
-		fill:       tint.Alpha(pick[float32](light, 0.16, 0.26)),
-		stroke:     tint.Alpha(pick[float32](light, 0.35, 0.42)),
+		ring:       brandInk(t, tint),
+		foreground: brandInk(t, tint),
+		fill:       tint.Alpha(fill),
+		stroke:     tint.Alpha(0.45),
 	}
 }
 

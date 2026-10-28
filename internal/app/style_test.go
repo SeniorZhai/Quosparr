@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/egoist/mygo/ui"
+	"github.com/licoy/quosparr/internal/runway"
 	"github.com/licoy/quosparr/internal/usage"
 )
 
@@ -45,6 +46,37 @@ func TestTokenHeatmapUsesThemeAccent(t *testing.T) {
 		got := heatLevelColor(theme, usage.HeatmapCell{InRange: true, Level: 4})
 		if want := theme.Accent.Alpha(0.92); got != want {
 			t.Fatalf("dark=%t heat level color=%v, want %v", dark, got, want)
+		}
+	}
+}
+
+func TestHighlightsFollowSelectedAccent(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		for _, color := range []string{"#8659D6", "#168466", "#F5CE60"} {
+			theme := buildThemeColor(dark, color)
+			ink := brandInk(theme, theme.Accent)
+			for tint := sysGreen; tint < sysGray; tint++ {
+				if got := sys(theme, tint); got != ink {
+					t.Fatalf("dark=%t color=%s tint=%d: %v", dark, color, tint, got)
+				}
+			}
+			for _, health := range []runway.Health{runway.HealthGreen, runway.HealthYellow, runway.HealthRed} {
+				if healthFill(theme, health) != theme.Accent || healthInk(theme, health) != ink {
+					t.Fatal("quota ignored the selected accent")
+				}
+			}
+			for _, phase := range []expiryPhase{expiryActive, expirySoon, expiryExpired} {
+				look := expiryLookOf(theme, phase)
+				if look.foreground != ink || look.fill.R != theme.Accent.R || look.fill.G != theme.Accent.G || look.fill.B != theme.Accent.B {
+					t.Fatal("expiry ignored the selected accent")
+				}
+			}
+			if look := accentTierLook(theme); look.foreground != ink || look.text[0] != ink {
+				t.Fatal("tier ignored the selected accent")
+			}
+			if contrastRatio(ink, pal(theme).Inset) < 4.5 {
+				t.Fatal("highlight text lost contrast")
+			}
 		}
 	}
 }

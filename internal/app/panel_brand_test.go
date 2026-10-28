@@ -50,7 +50,10 @@ func assertBrandBackground(t *testing.T, tt *ui.Tester, label string, theme *ui.
 	}
 	brand, blue := 0, 0
 	img := tt.Image()
-	semantic := sys(theme, sysBlue)
+	semantic := ui.Hex("#007AFF")
+	if theme.Dark {
+		semantic = ui.Hex("#0A84FF")
+	}
 	for y := 0; y < img.Bounds().Dy(); y++ {
 		for x := 0; x < img.Bounds().Dx(); x++ {
 			px := img.RGBAAt(x, y)

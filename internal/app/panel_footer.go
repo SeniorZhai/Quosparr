@@ -29,7 +29,7 @@ func footerButton(c *ui.Context, icon *ui.SVG, title, help string, destructive b
 		ink = t.Text
 		b.Background(hoverNeutral(t))
 		if destructive {
-			ink = pick(!t.Dark, ui.RGBA(191, 31, 38, 1), sys(t, sysRed))
+			ink = sys(t, sysRed)
 			b.Background(sys(t, sysRed).Alpha(0.10))
 		}
 	}

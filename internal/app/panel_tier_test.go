@@ -10,7 +10,7 @@ import (
 func TestTierFillHasNoCenterColorJump(t *testing.T) {
 	background := ui.RGB(45, 45, 45)
 	for _, light := range []bool{false, true} {
-		for _, look := range []tierLook{silverLook(light), goldLook(light), blackGoldLook(light), platinumLook(light)} {
+		for _, look := range []tierLook{accentTierLook(buildThemeColor(!light, "#8659D6"))} {
 			for _, height := range []float32{12, 18} {
 				img := ui.Render(func(c *ui.Context) {
 					ui.Box(c).Fill().Background(background).Draw(func(p *ui.Painter, r ui.Rect) {

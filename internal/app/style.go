@@ -24,40 +24,17 @@ const (
 	TintGray
 )
 
-var tintHex = [...][2]string{
-	TintBlue:   {"#007AFF", "#0A84FF"},
-	TintGreen:  {"#28B14C", "#30D158"},
-	TintRed:    {"#FF3B30", "#FF453A"},
-	TintOrange: {"#F59100", "#FF9F0A"},
-	TintTeal:   {"#14A3BE", "#40C8E0"},
-	TintPurple: {"#AF52DE", "#BF5AF2"},
-	TintIndigo: {"#5856D6", "#5E5CE6"},
-	TintPink:   {"#FF2D55", "#FF375F"},
-	TintGray:   {"#8E8E93", "#98989D"},
-}
-
-var tintColors [len(tintHex)][2]ui.Color
-
-func init() {
-	for i, h := range tintHex {
-		tintColors[i] = [2]ui.Color{ui.Hex(h[0]), ui.Hex(h[1])}
-	}
-}
-
-// C is the tint in the theme's appearance.
+// C is the selected accent, except for neutral settings icons.
 func (k Tint) C(t *ui.Theme) ui.Color {
-	if t.Dark {
-		return tintColors[k][1]
+	if k == TintGray {
+		return t.TextMuted
 	}
-	return tintColors[k][0]
+	return t.Accent
 }
 
-// Text is the tint for text, darker on light backgrounds to stay legible.
+// Text keeps the selected accent readable on cards.
 func (k Tint) Text(t *ui.Theme) ui.Color {
-	if t.Dark {
-		return tintColors[k][1]
-	}
-	return tintColors[k][0].Mix(ui.RGB(0, 0, 0), 0.12)
+	return brandInk(t, k.C(t))
 }
 
 // palette holds the surfaces the theme has no names for.
@@ -146,6 +123,7 @@ func buildThemeColor(dark bool, color string) *ui.Theme {
 	}
 	accent := ui.Hex(color)
 	t.Accent = accent
+	t.Danger, t.Warning, t.Success = brandInk(t, accent), brandInk(t, accent), brandInk(t, accent)
 	t.AccentHover = accent.Mix(ui.RGB(255, 255, 255), 0.06)
 	t.AccentPressed = accent.Mix(ui.RGB(0, 0, 0), 0.15)
 	// White text stays on all but the light colors, as on the system's.
@@ -193,9 +171,9 @@ func buildTheme(dark bool) *ui.Theme {
 		t.Accent = ui.Hex("#B3582D")
 		t.AccentHover = ui.Hex("#B95C31")
 		t.AccentPressed = ui.Hex("#984925")
-		t.Danger = ui.Hex("#FF453A")
-		t.Warning = ui.Hex("#FF9F0A")
-		t.Success = ui.Hex("#30D158")
+		t.Danger = brandInk(t, t.Accent)
+		t.Warning = brandInk(t, t.Accent)
+		t.Success = brandInk(t, t.Accent)
 		t.Selection = ui.RGBA(179, 88, 45, 0.4)
 		t.Focus = ui.RGBA(179, 88, 45, 0.6)
 		t.Inverse = ui.Hex("#F5F5F7")
@@ -214,9 +192,9 @@ func buildTheme(dark bool) *ui.Theme {
 	t.Accent = ui.Hex("#B3582D")
 	t.AccentHover = ui.Hex("#B95C31")
 	t.AccentPressed = ui.Hex("#984925")
-	t.Danger = ui.Hex("#E5342A")
-	t.Warning = ui.Hex("#D97E00")
-	t.Success = ui.Hex("#24A148")
+	t.Danger = brandInk(t, t.Accent)
+	t.Warning = brandInk(t, t.Accent)
+	t.Success = brandInk(t, t.Accent)
 	t.Selection = ui.RGBA(179, 88, 45, 0.25)
 	t.Focus = ui.RGBA(179, 88, 45, 0.5)
 	t.Inverse = ui.Hex("#1D1D1F")
@@ -232,7 +210,7 @@ func Tile(c *ui.Context, icon *ui.SVG, k Tint, size float32, solid bool) ui.Elem
 	col := k.C(t)
 	bg, fg := col.Alpha(0.15), k.Text(t)
 	if solid {
-		bg, fg = col, ui.RGB(255, 255, 255)
+		bg, fg = col, t.AccentText
 	}
 	return ui.Row(c).Size(size, size).Radius(size * 0.28).Background(bg).Justify(ui.Center).AlignItems(ui.Center).Children(func() {
 		ui.Icon(c, icon).Size(size*0.58, size*0.58).TextColor(fg)
@@ -280,15 +258,15 @@ func pillButton(c *ui.Context, icon *ui.SVG, label string, disabled, warn, small
 	}
 	bg, col := t.Text.Alpha(0.06), t.Text
 	if warn {
-		bg, col = t.Warning, ui.RGB(255, 255, 255)
+		bg, col = t.Accent, t.AccentText
 	}
 	switch {
 	case disabled:
 		col = t.TextMuted
 	case b.Pressed() && warn:
-		bg = t.Warning.Alpha(0.8)
+		bg = t.Accent.Alpha(0.8)
 	case b.Hovered() && warn:
-		bg = t.Warning.Alpha(0.9)
+		bg = t.Accent.Alpha(0.9)
 	case b.Pressed():
 		bg = t.Text.Alpha(0.14)
 	case b.Hovered():

@@ -21,7 +21,8 @@ func panelHeader(c *ui.Context, a *App, l l10n.Localizer, prefs store.Preference
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				// Center on the cap height rather than the line box, which reserves
 				// room for descenders below the glyphs.
-				ui.Image(c, appIconBitmap()).Size(20, 20).Margin(2, 0, 0, 0)
+				appIconBitmap()
+				ui.Image(c, pick(c.Theme().Dark, appIconWhite, appIconBlack)).Size(20, 20).Margin(2, 0, 0, 0)
 				ui.Text(c, "Quosparr").FontSize(fsTitle3).FontWeight(600).SingleLine()
 			})
 			ui.Spacer(c).Grow(1)

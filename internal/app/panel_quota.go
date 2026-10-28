@@ -13,28 +13,13 @@ import (
 // quotaBarHeight is RunwayProgressBar.barHeight.
 const quotaBarHeight float32 = 5
 
-// healthFill is the bar color of a meter health.
+// healthFill follows the selected accent; percentages convey the quota state.
 func healthFill(t *ui.Theme, h runway.Health) ui.Color {
-	switch h {
-	case runway.HealthYellow:
-		return sys(t, sysYellow)
-	case runway.HealthRed:
-		return sys(t, sysRed)
-	}
-	return sys(t, sysGreen)
+	return t.Accent
 }
 
-// healthInk is the text-safe variant of healthFill: yellow turns orange in
-// light mode and every light-mode ink is deepened by 35% black.
 func healthInk(t *ui.Theme, h runway.Health) ui.Color {
-	base := healthFill(t, h)
-	if t.Dark {
-		return base
-	}
-	if h == runway.HealthYellow {
-		base = sys(t, sysOrange)
-	}
-	return base.Mix(ui.RGBA(0, 0, 0, 1), 0.35)
+	return brandInk(t, t.Accent)
 }
 
 // meterTitle names a standard Codex window in the user's language; the

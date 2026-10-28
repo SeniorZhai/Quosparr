@@ -114,13 +114,24 @@ func (t settingsTab) tint() Tint {
 //go:embed assets/app-icon.png
 var appIconPNG []byte
 
+//go:embed assets/app-icon-white.png
+var appIconWhitePNG []byte
+
+//go:embed assets/app-icon-black.png
+var appIconBlackPNG []byte
+
 var (
-	appIconOnce sync.Once
-	appIcon     *ui.Bitmap
+	appIconOnce                sync.Once
+	appIcon                    *ui.Bitmap
+	appIconWhite, appIconBlack *ui.Bitmap
 )
 
 func appIconBitmap() *ui.Bitmap {
-	appIconOnce.Do(func() { appIcon, _ = ui.DecodeBitmap(appIconPNG) })
+	appIconOnce.Do(func() {
+		appIcon, _ = ui.DecodeBitmap(appIconPNG)
+		appIconWhite, _ = ui.DecodeBitmap(appIconWhitePNG)
+		appIconBlack, _ = ui.DecodeBitmap(appIconBlackPNG)
+	})
 	return appIcon
 }
 

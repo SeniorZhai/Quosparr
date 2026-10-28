@@ -31,31 +31,12 @@ const (
 	sysGray
 )
 
-var sysHex = [...][2]string{
-	sysGreen:  {"#34C759", "#30D158"},
-	sysOrange: {"#FF9500", "#FF9F0A"},
-	sysRed:    {"#FF3B30", "#FF453A"},
-	sysBlue:   {"#007AFF", "#0A84FF"},
-	sysPurple: {"#AF52DE", "#BF5AF2"},
-	sysYellow: {"#FFCC00", "#FFD60A"},
-	sysTeal:   {"#30B0C7", "#40CBE0"},
-	sysGray:   {"#8E8E93", "#98989D"},
-}
-
-var sysColors [len(sysHex)][2]ui.Color
-
-func init() {
-	for i, h := range sysHex {
-		sysColors[i] = [2]ui.Color{ui.Hex(h[0]), ui.Hex(h[1])}
-	}
-}
-
-// sys is the system color in the theme's appearance.
+// sys keeps neutral labels muted and uses the selected accent for emphasis.
 func sys(t *ui.Theme, k sysTint) ui.Color {
-	if t.Dark {
-		return sysColors[k][1]
+	if k == sysGray {
+		return t.TextMuted
 	}
-	return sysColors[k][0]
+	return brandInk(t, t.Accent)
 }
 
 // ink is a label color: primary, secondary or tertiary.

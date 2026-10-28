@@ -45,25 +45,6 @@ func toneTint(t *ui.Theme, tone tagTone) ui.Color {
 	return inkSecondary(t)
 }
 
-// toneDeepInk is the readable light-mode text of a tone.
-func toneDeepInk(tone tagTone) ui.Color {
-	switch tone {
-	case toneGreen:
-		return ui.RGBA(15, 92, 46, 1)
-	case toneOrange, toneYellow:
-		return ui.RGBA(158, 77, 5, 1)
-	case toneRed:
-		return ui.RGBA(148, 26, 31, 1)
-	case toneBlue:
-		return ui.RGBA(20, 61, 133, 1)
-	case tonePurple:
-		return ui.RGBA(87, 36, 122, 1)
-	case toneTeal:
-		return ui.RGBA(10, 82, 92, 1)
-	}
-	return ui.RGBA(56, 61, 71, 1)
-}
-
 func resolveTag(t *ui.Theme, tone tagTone) tagLook {
 	if tone == toneNeutral {
 		if t.Dark {
@@ -73,7 +54,7 @@ func resolveTag(t *ui.Theme, tone tagTone) tagLook {
 	}
 	tint := toneTint(t, tone)
 	if !t.Dark {
-		return tagLook{toneDeepInk(tone), tint.Alpha(0.14), tint.Alpha(0.35)}
+		return tagLook{brandInk(t, tint), tint.Alpha(0.14), tint.Alpha(0.35)}
 	}
 	return tagLook{tint, tint.Alpha(0.22), tint.Alpha(0.42)}
 }
