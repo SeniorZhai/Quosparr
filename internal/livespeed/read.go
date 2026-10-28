@@ -56,6 +56,9 @@ func readGrok(now time.Time, home string, since time.Time, responses *[]Response
 }
 
 func readCodex(now time.Time, home string, since time.Time, responses *[]Response, flights *[]Flight) {
+	if home == "" {
+		return
+	}
 	eachRecent(filepath.Join(home, "sessions"), 6, since, func(path string, info fs.FileInfo) {
 		if filepath.Ext(info.Name()) != ".jsonl" {
 			return

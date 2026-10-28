@@ -135,11 +135,13 @@ Linux には GTK3、AppIndicator、トレイに対応したデスクトップ、
 
 ## ターミナルモード
 
-`quosparr --tui`を実行すると、フローティングウィンドウで選択したプロバイダーの使用量バー、残高、リセットまでの時間、リアルタイムの tok/s をターミナルに表示します。macOS では `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`、Windows ではインストール先で `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'` を実行してください。
+アプリで **詳細 → ターミナルダッシュボード → TUI をインストール** を開きます。インストール後は `quosparr` を実行すると独立したターミナルダッシュボードが既定で開き、`quosparr --tui` も使用できます。実行時にデスクトップアプリは必要ありません。プロバイダーのカードにはクォータの状態に応じて色分けしたバー、残高、リセットまでの時間、リアルタイムの tok/s を表示し、更新状況と自動更新の間隔も確認できます。
 
-画面は毎秒更新され、ターミナルのサイズに合わせて表示されます。`r` で更新し、`q`、`Esc`、`Ctrl+C` で終了します。デスクトップのフローティングウィンドウがオフでも使用できます。他の Quosparr が動作していなければ、保存済みのプロキシと既存のアカウント規則で独立して更新します。他のインスタンスが動作中なら、そのデータを表示し、`r` はスナップショットの再読込だけを行い、アカウントの二重更新を避けます。古いデスクトップ版は更新後に再起動するとミラー表示を利用できます。
+TUIの設定がない場合は設定ウィザードが自動的に開きます。`quosparr --setup`を実行するか、TUI内で `c` を押すと再設定できます。既存の公式CLIログイン、APIキーとサービスURLの手動入力、ユーザー操作によるデスクトップアプリの現在の認証情報のインポートから選べます。プロバイダーの選択、言語、更新間隔はTUI独自の設定に保存されます。
 
-非公開ファイル `~/.quosparr/tui-snapshot.json` は表示値とタイムスタンプのみを含み、認証情報や会話本文を含みません。スナップショットがない場合や古い場合は利用不可と表示します。データを提供するインスタンスが終了したら、TUI を再起動すると独立した更新を開始できます。
+画面は毎秒更新され、ターミナルのサイズに合わせて表示されます。クォータの取得間隔はTUIに保存された設定に従い、既定値は5分です。`r` で更新し、小さいターミナルでは `n` / `p` / `Tab` でプロバイダーのページを切り替え、`q`、`Esc`、`Ctrl+C` で終了します。
+
+非公開ファイル `~/.quosparr/tui/config.json` にキーは含まれません。TUIの認証情報のコピーは `~/.quosparr/accounts/<tui-id>/auth.json` のみに保存されます（ディレクトリ `0700`、ファイル `0600`。Windowsでは継承を無効にし、現在のユーザーだけがアクセスできる保護されたACLを使用）。インポートはデスクトップアプリで現在選択されている認証情報を読み取り、必要なフィールドだけをコピーし、デスクトップアプリや公式ログインを変更しません。通常のTUI実行ではOAuthトークンを更新せず、公式ログインも変更しません。認証情報が期限切れになった場合は、CLIで再度ログインするか、再インポートしてください。
 
 ## デスクトップウィジェット
 
@@ -195,7 +197,7 @@ go build ./...
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
-HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run ./cmd/quosparr-tui
 ```
 
 セルフチェックはネットワークリクエストを行わず、資格情報も読み込みません。現時点では、バージョン、プラットフォーム、独自ディレクトリの権限、ロック、Codex の auth とセッションインデックスの有無を確認します。それ以外の診断は `not ported yet` と表示されます。

@@ -135,11 +135,13 @@ Linux needs GTK3, AppIndicator, a desktop with tray support, and a working Secre
 
 ## Terminal mode
 
-Run `quosparr --tui` to show the floating window's provider selection in a terminal: quota bars, balances, reset countdowns and live tok/s. On macOS use `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`; on Windows run `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'` from the installation directory.
+In the app, open **Advanced → Terminal dashboard → Install TUI**. After installation, `quosparr` opens the independent terminal dashboard by default; `quosparr --tui` also works. It runs without the desktop app. Provider cards show quota bars colored by health, balances, reset countdowns and live tok/s, together with refresh status and automatic refresh timing.
 
-The display updates every second and adapts to terminal size. Press `r` to refresh, or `q`, `Esc` or `Ctrl+C` to exit. It works with the desktop floating window turned off. Without another Quosparr instance, it refreshes independently using the saved proxy and existing account rules. When another instance is running, it mirrors that instance's data and `r` rereads the snapshot, without starting a second account refresher. Restart an older desktop build after updating to enable mirroring.
+The setup wizard opens when no TUI configuration exists. Run `quosparr --setup` or press `c` in the TUI to configure it again. Choose existing official CLI logins, enter an API key and service URL manually, or explicitly import the desktop app's current credentials. Provider selection, language and refresh interval belong to the TUI configuration.
 
-The private `~/.quosparr/tui-snapshot.json` contains only display values and a timestamp, not credentials or conversation text. Missing or stale snapshots are shown as unavailable. If the publishing instance exits, restart the TUI to resume independent refreshes.
+The display updates every second and adapts to terminal size. Quota requests follow the saved TUI refresh interval, five minutes by default. Press `r` to refresh, `n` / `p` / `Tab` to browse provider pages in a small terminal, and `q`, `Esc` or `Ctrl+C` to exit.
+
+The private `~/.quosparr/tui/config.json` contains no keys. TUI credential copies are stored only in `~/.quosparr/accounts/<tui-id>/auth.json` (directory `0700`, file `0600`; on Windows, a protected ACL accessible only to the current user, with inheritance disabled). Import reads the selected desktop credentials and copies only necessary fields, without changing the desktop app or official login. Normal TUI operation does not refresh OAuth tokens or change official logins; when credentials expire, sign in with the CLI again or import them again.
 
 ## Desktop Widgets
 
@@ -195,7 +197,7 @@ Run against a temporary HOME and a separate preferences domain so your real acco
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
-HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run ./cmd/quosparr-tui
 ```
 
 The self-check makes no network request and reads no credentials. It currently covers the version, platform, own-directory permissions, locks, and whether Codex auth and the session index exist; other diagnostics are listed as `not ported yet`.

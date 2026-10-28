@@ -96,6 +96,31 @@ func TestBillingFetchMergesPlanMoneyAndReset(t *testing.T) {
 	}
 }
 
+func TestBillingFetchTokenWithoutAuthFile(t *testing.T) {
+	token := syntheticTierToken(1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertIdentity(t, r, token, "9.9.9")
+		if strings.HasSuffix(r.URL.Path, "/billing") {
+			writeJSON(w, `{"config":{"creditUsagePercent":25}}`)
+		} else {
+			w.WriteHeader(http.StatusNoContent)
+		}
+	}))
+	defer srv.Close()
+	client := &BillingClient{HTTP: srv.Client(), BaseURL: srv.URL, ResetCreditsURL: srv.URL + "/reset", Version: func() string { return "9.9.9" }}
+	raw, _, err := client.FetchToken(context.Background(), token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := ParseBillingSnapshot(raw)
+	if err != nil || snapshot.IncludedUsagePercent != 25 {
+		t.Fatalf("token billing: %v, %v", snapshot.IncludedUsagePercent, err)
+	}
+	if _, _, err := client.FetchToken(context.Background(), ""); !errors.Is(err, ErrAuthenticationRequired) {
+		t.Fatalf("empty token: %v", err)
+	}
+}
+
 func TestBillingFetchUsesJWTWhenSettingsOmitPlan(t *testing.T) {
 	token := syntheticTierToken(1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

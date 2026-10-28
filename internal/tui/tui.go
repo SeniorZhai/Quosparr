@@ -17,6 +17,16 @@ import (
 )
 
 var ErrNotTerminal = errors.New("interactive terminal required")
+var ErrConfigure = errors.New("configure TUI")
+
+type View struct {
+	Floating        runway.FloatingView
+	SourceAt        time.Time
+	LastRefresh     time.Time
+	NextRefresh     time.Time
+	IntervalSeconds int
+	Refreshing      bool
+}
 
 const enterScreen = "\x1b[?1049h\x1b[?25l\x1b[0m"
 const leaveScreen = "\x1b[0m\x1b[?25h\x1b[?1049l"
@@ -37,7 +47,7 @@ func CheckTerminal(in, out *os.File) error {
 
 // Run restores the terminal on cancellation, keyboard exit, or an I/O error.
 // refresh should schedule work without waiting for a network response.
-func Run(ctx context.Context, in, out *os.File, l l10n.Localizer, snapshot func() runway.FloatingView, refresh func()) error {
+func Run(ctx context.Context, in, out *os.File, l l10n.Localizer, snapshot func() View, refresh func()) error {
 	if err := CheckTerminal(in, out); err != nil {
 		return fmt.Errorf("%s: %w", l.TUI("terminalRequired"), err)
 	}
@@ -46,12 +56,15 @@ func Run(ctx context.Context, in, out *os.File, l l10n.Localizer, snapshot func(
 		return fmt.Errorf("%s: %w", l.TUI("terminalError"), err)
 	}
 	if err := run(ctx, out, t, l, snapshot, refresh); err != nil {
+		if errors.Is(err, ErrConfigure) {
+			return err
+		}
 		return fmt.Errorf("%s: %w", l.TUI("terminalError"), err)
 	}
 	return nil
 }
 
-func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, snapshot func() runway.FloatingView, refresh func()) (err error) {
+func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, snapshot func() View, refresh func()) (err error) {
 	defer func() {
 		_, screenErr := io.WriteString(out, leaveScreen)
 		err = errors.Join(err, screenErr, term.restore())
@@ -61,14 +74,20 @@ func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, sn
 	}
 	var nextFrame time.Time
 	lastWidth, lastHeight := 0, 0
+	page := 0
+	color := os.Getenv("NO_COLOR") == "" && os.Getenv("TERM") != "dumb"
 	for ctx.Err() == nil {
 		w, h, sizeErr := term.size()
 		if sizeErr != nil {
 			return sizeErr
 		}
 		if now := time.Now(); !now.Before(nextFrame) || w != lastWidth || h != lastHeight {
-			frame := render(l, snapshot(), w, h)
-			if _, err = io.WriteString(out, "\x1b[H"+frame+"\x1b[J"); err != nil {
+			frame := renderDashboard(l, snapshot(), w, h, page, time.Now(), color)
+			prefix := "\x1b[H"
+			if color {
+				prefix += "\x1b[48;5;234m\x1b[38;5;252m"
+			}
+			if _, err = io.WriteString(out, prefix+"\x1b[2K"+strings.ReplaceAll(frame, "\r\n", "\r\n\x1b[2K")+"\x1b[J"); err != nil {
 				return err
 			}
 			lastWidth, lastHeight = w, h
@@ -89,6 +108,14 @@ func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, sn
 				}
 				// Escape sequences (arrows, function keys) are not quit commands.
 				break keys
+			case 'c', 'C':
+				return ErrConfigure
+			case 'n', 'N', '\t':
+				page++
+				nextFrame = time.Time{}
+			case 'p', 'P':
+				page--
+				nextFrame = time.Time{}
 			case 'r', 'R':
 				if refresh != nil {
 					refresh()
@@ -98,56 +125,6 @@ func run(ctx context.Context, out io.Writer, term terminal, l l10n.Localizer, sn
 		}
 	}
 	return nil
-}
-
-func render(l l10n.Localizer, view runway.FloatingView, columns, rows int) string {
-	// Leave the final column free so a full line cannot wrap or scroll.
-	columns = max(0, columns-1)
-	if columns == 0 || rows <= 0 {
-		return ""
-	}
-	lines := []string{"Quosparr | " + l.TUI("remaining")}
-	for _, provider := range view.Providers {
-		name := provider.Name
-		if provider.LiveText != "" {
-			name += "  " + provider.LiveText
-		}
-		lines = append(lines, name)
-		if len(provider.Meters) == 0 {
-			lines = append(lines, "  "+provider.Status)
-		}
-		for _, meter := range provider.Meters[:min(2, len(provider.Meters))] {
-			value := meter.ValueText
-			if value == "" {
-				percent := min(100, max(0, meter.RemainingPercent))
-				barWidth := min(20, max(0, columns-24))
-				if barWidth >= 4 {
-					filled := percent * barWidth / 100
-					value = "[" + strings.Repeat("#", filled) + strings.Repeat("-", barWidth-filled) + "] "
-				}
-				value += fmt.Sprintf("%d%%", percent)
-			}
-			lines = append(lines, "  "+meter.Label+"  "+value)
-			if meter.Reset != "" {
-				lines = append(lines, "    "+l.TUI("reset")+" "+meter.Reset)
-			}
-		}
-	}
-	if len(view.Providers) == 0 {
-		lines = append(lines, l.Text(l10n.KeyNotLoaded))
-	}
-	footer := "r " + l.Text(l10n.KeyRefresh) + " | q/Esc " + l.Text(l10n.KeyQuit)
-	if len(lines)+1 > rows {
-		lines = lines[:max(0, rows-1)]
-		if len(lines) > 1 {
-			lines[len(lines)-1] = "... " + l.TUI("resize")
-		}
-	}
-	lines = append(lines, footer)
-	for i, line := range lines {
-		lines[i] = "\x1b[2K" + fit(line, columns)
-	}
-	return strings.Join(lines, "\r\n")
 }
 
 // fit removes terminal controls and clips by display cells, including CJK.

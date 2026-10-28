@@ -29,7 +29,10 @@ Options:
       Open the settings window after launching.
 
   --tui
-      Show floating-window quotas in the terminal (q: quit, r: refresh).
+      Open the independent terminal quota dashboard (q: quit, r: refresh).
+
+  --setup
+      Configure terminal providers, credentials and automatic refresh.
 
 `
 
@@ -42,7 +45,7 @@ func ParseArgs(args []string) Command {
 		return CommandHelp
 	case slices.Contains(args, "--self-check"):
 		return CommandSelfCheck
-	case slices.Contains(args, "--tui"):
+	case slices.Contains(args, "--tui") || slices.Contains(args, "--setup"):
 		return CommandTUI
 	case slices.Contains(args, "--settings"):
 		return CommandSettings

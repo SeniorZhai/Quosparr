@@ -6,8 +6,10 @@ import (
 	"errors"
 	"io"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/licoy/quosparr/internal/l10n"
 	"github.com/licoy/quosparr/internal/runway"
@@ -22,8 +24,8 @@ func TestRenderFloatingData(t *testing.T) {
 		{Name: "Claude", Meters: []runway.FloatingMeter{{Label: "Balance", ValueText: "$12.34"}}},
 		{Name: "Grok", Status: "Log in"},
 	}}
-	got := render(l10n.New(l10n.English), view, 80, 24)
-	for _, want := range []string{"Codex  42 tok/s", "73%", "28%", "Reset in 2h 18m", "$12.34", "Grok", "Log in", "r Refresh", "q/Esc Quit"} {
+	got := renderDashboard(l10n.New(l10n.English), View{Floating: view}, 80, 24, 0, time.Now(), false)
+	for _, want := range []string{"Codex", "42 tok/s", "73%", "28%", "Reset in 2h 18m", "$12.34", "Grok", "Log in", "r Refresh", "q/Esc Quit"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}
@@ -63,7 +65,7 @@ func TestRenderStaysInsideSmallTerminals(t *testing.T) {
 	}}
 	for _, dimensions := range [][2]int{{80, 24}, {20, 8}, {7, 3}, {3, 1}, {1, 1}, {0, 0}} {
 		w, h := dimensions[0], dimensions[1]
-		got := render(l10n.New(l10n.SimplifiedChinese), view, w, h)
+		got := renderDashboard(l10n.New(l10n.SimplifiedChinese), View{Floating: view}, w, h, 0, time.Now(), true)
 		if strings.Contains(got, "\x1b[?1049l") {
 			t.Fatal("provider text injected an escape sequence")
 		}
@@ -75,13 +77,13 @@ func TestRenderStaysInsideSmallTerminals(t *testing.T) {
 			t.Fatalf("%dx%d rendered %d rows", w, h, len(lines))
 		}
 		for _, line := range lines {
-			line = strings.TrimPrefix(line, "\x1b[2K")
+			line = regexp.MustCompile(`\[[0-9;]*m`).ReplaceAllString(line, "")
 			if fit(line, w-1) != line {
 				t.Errorf("%dx%d row overflows: %q", w, h, line)
 			}
 		}
 	}
-	got := render(l10n.New(l10n.English), view, 80, 24)
+	got := renderDashboard(l10n.New(l10n.English), View{Floating: view}, 80, 24, 0, time.Now(), false)
 	if !strings.Contains(got, "100%") || !strings.Contains(got, "0%") {
 		t.Fatal("quota percentages are not clamped to the display range")
 	}
@@ -110,9 +112,9 @@ func TestRunRefreshAndRestoresOnKeyboardExit(t *testing.T) {
 		term := &fakeTerminal{keys: [][]byte{[]byte("\x1b[A"), []byte("r"), {quit}}}
 		var output bytes.Buffer
 		refreshes, snapshots := 0, 0
-		err := run(context.Background(), &output, term, l10n.New(l10n.English), func() runway.FloatingView {
+		err := run(context.Background(), &output, term, l10n.New(l10n.English), func() View {
 			snapshots++
-			return runway.FloatingView{}
+			return View{}
 		}, func() { refreshes++ })
 		if err != nil || !term.restored || refreshes != 1 || snapshots != 2 {
 			t.Fatalf("quit=%d err=%v restored=%v refreshes=%d snapshots=%d", quit, err, term.restored, refreshes, snapshots)
@@ -142,7 +144,7 @@ func TestRunRestoresAfterErrorsAndCancellation(t *testing.T) {
 			case "cancel":
 				cancel()
 			}
-			err := run(ctx, writer, term, l10n.New(l10n.English), func() runway.FloatingView { return runway.FloatingView{} }, nil)
+			err := run(ctx, writer, term, l10n.New(l10n.English), func() View { return View{} }, nil)
 			if !term.restored {
 				t.Fatal("terminal modes were not restored")
 			}
@@ -164,6 +166,34 @@ type failedWriter struct{ err error }
 
 func (w failedWriter) Write([]byte) (int, error) { return 0, w.err }
 
+func TestDashboardPagesAndRefreshStatus(t *testing.T) {
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	view := View{LastRefresh: now.Add(-time.Minute), NextRefresh: now.Add(47 * time.Second), IntervalSeconds: 300}
+	for _, name := range []string{"Codex", "Claude", "Grok", "Kimi", "DeepSeek", "Copilot"} {
+		view.Floating.Providers = append(view.Floating.Providers, runway.FloatingProvider{Name: name, Status: "Sign in"})
+	}
+	l := l10n.New(l10n.English)
+	first := renderDashboard(l, view, 80, 24, 0, now, false)
+	second := renderDashboard(l, view, 80, 24, 1, now, false)
+	for _, want := range []string{"Auto refresh 5m0s", "Next refresh 00:47", "Page 1/2", "Codex", "Kimi"} {
+		if !strings.Contains(first, want) {
+			t.Errorf("first page lacks %q", want)
+		}
+	}
+	if strings.Contains(first, "Copilot") || !strings.Contains(second, "Copilot") {
+		t.Fatal("providers are not paginated")
+	}
+	view.Refreshing = true
+	if got := renderDashboard(l, view, 80, 24, 0, now, false); !strings.Contains(got, "Refreshing") || strings.Contains(got, "Next refresh 00:47") {
+		t.Fatal("refresh state is ambiguous")
+	}
+	term := &fakeTerminal{keys: [][]byte{[]byte("c")}}
+	var out bytes.Buffer
+	if err := run(context.Background(), &out, term, l, func() View { return view }, nil); !errors.Is(err, ErrConfigure) || !term.restored {
+		t.Fatalf("configure did not restore terminal: %v", err)
+	}
+}
+
 func TestRunRejectsPipesWithoutOutput(t *testing.T) {
 	input, writer, err := os.Pipe()
 	if err != nil {
@@ -176,9 +206,9 @@ func TestRunRejectsPipesWithoutOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer out.Close()
-	err = Run(context.Background(), input, out, l10n.New(l10n.SimplifiedChinese), func() runway.FloatingView {
+	err = Run(context.Background(), input, out, l10n.New(l10n.SimplifiedChinese), func() View {
 		t.Fatal("non-terminal input must not access the snapshot")
-		return runway.FloatingView{}
+		return View{}
 	}, nil)
 	if !errors.Is(err, ErrNotTerminal) {
 		t.Fatalf("unexpected error: %v", err)

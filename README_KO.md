@@ -135,11 +135,13 @@ Linux에는 GTK3, AppIndicator, 트레이를 지원하는 데스크톱, 프록�
 
 ## 터미널 모드
 
-`quosparr --tui`를 실행하면 플로팅 창에서 선택한 공급자의 사용량 막대, 잔액, 초기화 카운트다운과 실시간 tok/s를 터미널에 표시합니다. macOS에서는 `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`를, Windows에서는 설치 폴더에서 `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'`를 실행하세요.
+앱에서 **고급 → 터미널 대시보드 → TUI 설치**를 여세요. 설치 후 `quosparr`를 실행하면 기본적으로 독립 터미널 대시보드가 열리며 `quosparr --tui`도 사용할 수 있습니다. 실행 시 데스크톱 앱에 의존하지 않습니다. 공급자 카드는 상태에 따라 색상이 바뀌는 할당량 막대, 잔액, 초기화 카운트다운과 실시간 tok/s를 보여 주며 새로고침 상태와 자동 새로고침 주기도 표시합니다.
 
-화면은 매초 갱신되며 터미널 크기에 맞춰집니다. `r`로 새로 고치고 `q`, `Esc`, `Ctrl+C`로 종료합니다. 데스크톱 플로팅 창이 꺼져 있어도 사용할 수 있습니다. 다른 Quosparr 인스턴스가 없으면 저장된 프록시와 기존 계정 규칙으로 독립적으로 갱신합니다. 다른 인스턴스가 실행 중이면 해당 데이터를 표시하고 `r`은 스냅샷만 다시 읽어 중복 계정 갱신을 피합니다. 이전 데스크톱 빌드는 업데이트 후 재시작해야 미러링할 수 있습니다.
+TUI 설정이 없으면 설정 마법사가 자동으로 열립니다. `quosparr --setup`을 실행하거나 TUI에서 `c`를 눌러 다시 설정할 수 있습니다. 기존 공식 CLI 로그인 사용, API 키와 서비스 URL 직접 입력, 데스크톱 앱의 현재 자격 증명 명시적 가져오기 중에서 선택할 수 있습니다. 공급자 선택, 언어와 새로고침 간격은 TUI 자체 설정에 저장됩니다.
 
-비공개 파일 `~/.quosparr/tui-snapshot.json`에는 표시 값과 타임스탬프만 저장되며 자격 증명이나 대화 원문은 포함하지 않습니다. 스냅샷이 없거나 오래되면 사용할 수 없다고 표시합니다. 데이터를 제공하는 인스턴스가 종료되면 TUI를 다시 실행하여 독립 갱신을 시작하세요.
+화면은 매초 갱신되며 터미널 크기에 맞춰집니다. 할당량 요청은 TUI에 저장된 새로고침 간격을 따르며 기본값은 5분입니다. `r`로 새로 고치고, 작은 터미널에서는 `n` / `p` / `Tab`으로 공급자 페이지를 전환하며, `q`, `Esc`, `Ctrl+C`로 종료합니다.
+
+비공개 파일 `~/.quosparr/tui/config.json`에는 키가 포함되지 않습니다. TUI 자격 증명 사본은 `~/.quosparr/accounts/<tui-id>/auth.json`에만 저장됩니다(디렉터리 `0700`, 파일 `0600`; Windows에서는 상속을 끄고 현재 사용자만 접근할 수 있는 보호된 ACL 사용). 가져오기는 데스크톱 앱에서 현재 선택한 자격 증명을 읽고 필요한 필드만 복사하며 데스크톱 앱이나 공식 로그인을 변경하지 않습니다. 일반 TUI 실행은 OAuth 토큰을 갱신하거나 공식 로그인을 변경하지 않습니다. 자격 증명이 만료되면 CLI로 다시 로그인하거나 다시 가져오세요.
 
 ## 데스크톱 위젯
 
@@ -195,7 +197,7 @@ go build ./...
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
-HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run ./cmd/quosparr-tui
 ```
 
 자가 진단은 네트워크 요청을 하지 않고 자격 증명도 읽지 않습니다. 현재는 버전, 플랫폼, 자체 디렉터리 권한, 잠금, Codex auth와 세션 인덱스 존재 여부만 확인하며, 나머지 진단은 `not ported yet`로 표시됩니다.

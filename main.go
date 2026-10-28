@@ -10,15 +10,12 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/licoy/quosparr/internal/app"
-	"github.com/licoy/quosparr/internal/l10n"
 	"github.com/licoy/quosparr/internal/migration"
 	"github.com/licoy/quosparr/internal/platform"
 	"github.com/licoy/quosparr/internal/sqliteruntime"
@@ -69,27 +66,7 @@ func main() {
 	os.Exit(run(command))
 }
 
-func runTUI() (code int) {
-	l := l10n.ForPreference("system", l10n.SystemPreferredLanguages())
-	restore, err := tui.PrepareConsole()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, l.TUI("terminalRequired"))
-		return 1
-	}
-	defer func() {
-		if err := restore(); err != nil {
-			fmt.Fprintln(os.Stderr, l.TUI("terminalError"))
-			code = 1
-		}
-	}()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if err := app.RunTUI(ctx, os.Stdin, os.Stdout, appVersion()); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return 1
-	}
-	return 0
-}
+func runTUI() int { return tui.Command(os.Args[1:]) }
 
 // run starts the app. Startup order (plan 3.5): single-instance lock ->
 // config -> legacy migration -> proxy credentials -> system state ->

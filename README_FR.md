@@ -135,11 +135,13 @@ Linux nécessite GTK3, AppIndicator, un bureau prenant en charge la zone de noti
 
 ## Mode terminal
 
-Lancez `quosparr --tui` pour afficher les fournisseurs choisis pour la fenêtre flottante dans le terminal : barres de quota, soldes, comptes à rebours et vitesse tok/s en direct. Sur macOS, utilisez `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui` ; sur Windows, lancez `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'` depuis le dossier d’installation.
+Dans l’app, ouvrez **Avancé → Tableau de bord du terminal → Installer le TUI**. Après l’installation, `quosparr` ouvre par défaut le tableau de bord autonome du terminal ; `quosparr --tui` fonctionne aussi. Il s’exécute sans l’app de bureau. Les cartes des fournisseurs affichent des barres de quota colorées selon leur état, les soldes, les comptes à rebours et la vitesse tok/s en direct. L’état et la fréquence de l’actualisation automatique sont également visibles.
 
-L’affichage se met à jour chaque seconde et s’adapte à la taille du terminal. Appuyez sur `r` pour actualiser, ou sur `q`, `Esc` ou `Ctrl+C` pour quitter. La fenêtre flottante du bureau peut être désactivée. Sans autre instance de Quosparr, le TUI actualise les données de façon autonome avec le proxy enregistré et les règles existantes des comptes. Si une autre instance fonctionne, il affiche ses données et `r` relit le snapshot, sans lancer un second mécanisme d’actualisation des comptes. Redémarrez une ancienne version bureau après sa mise à jour pour activer ce partage.
+L’assistant de configuration s’ouvre automatiquement si le TUI n’est pas encore configuré. Lancez `quosparr --setup` ou appuyez sur `c` dans le TUI pour le reconfigurer. Vous pouvez utiliser une connexion existante au CLI officiel, saisir une clé API et l’URL du service, ou importer explicitement les identifiants actuels de l’app de bureau. Le choix des fournisseurs, la langue et l’intervalle d’actualisation sont enregistrés dans la configuration propre au TUI.
 
-Le fichier privé `~/.quosparr/tui-snapshot.json` ne contient que les valeurs affichées et un horodatage, sans identifiants secrets ni texte des conversations. Un snapshot absent ou périmé est signalé comme indisponible. Si l’instance qui publie les données se ferme, relancez le TUI pour reprendre les actualisations autonomes.
+L’affichage se met à jour chaque seconde et s’adapte à la taille du terminal. Les requêtes de quota suivent l’intervalle enregistré dans le TUI, cinq minutes par défaut. Appuyez sur `r` pour actualiser, sur `n` / `p` / `Tab` pour parcourir les pages des fournisseurs dans un petit terminal, et sur `q`, `Esc` ou `Ctrl+C` pour quitter.
+
+Le fichier privé `~/.quosparr/tui/config.json` ne contient aucune clé. Les copies des identifiants du TUI sont conservées uniquement dans `~/.quosparr/accounts/<tui-id>/auth.json` (répertoire `0700`, fichier `0600` ; sous Windows, ACL protégé réservé à l’utilisateur actuel, avec héritage désactivé). L’import lit seulement les identifiants actuellement sélectionnés dans l’app de bureau et copie les champs nécessaires, sans modifier cette app ni la connexion officielle. En fonctionnement normal, le TUI n’actualise pas les jetons OAuth et ne modifie pas les connexions officielles ; lorsqu’ils expirent, reconnectez-vous via le CLI ou importez-les à nouveau.
 
 ## Widgets bureau
 
@@ -195,7 +197,7 @@ Lancez avec un HOME temporaire et un domaine de préférences distinct afin de n
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
-HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run ./cmd/quosparr-tui
 ```
 
 L’auto-diagnostic n’effectue aucune requête réseau et ne lit aucun identifiant. Il couvre actuellement la version, la plateforme, les droits des répertoires propres, les verrous et la présence de l’auth Codex et de l’index de session ; les autres diagnostics sont indiqués comme `not ported yet`.

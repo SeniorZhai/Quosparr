@@ -192,7 +192,6 @@ type liveApp struct {
 	version        string
 	langs          []string
 	liveSpeed      *livespeed.Monitor
-	tuiMirror      *tuiMirror
 }
 
 var (
@@ -245,7 +244,6 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 	repo := openUsage(home, priceSource)
 	widgetRequirements := initialWidgetRequirements(opts.Settings)
 	widgets := newWidgetCoordinator(home, widgetRequirements != 0)
-	tuiMirror := newTUIMirror(home)
 	var svc *runway.Service
 	dispatch := &snapshotDispatch{post: mygo.RunOnMain, apply: func(snap runway.Snapshot) {
 		if opts.Host != nil && LiveService() == svc {
@@ -301,7 +299,7 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 		RemoteQuotaDir:      filepath.Join(home, store.DataDirName),
 		WidgetRequirements:  widgetRequirements,
 		WidgetSink:          widgets.publish,
-		OnSnapshot:          func(snap runway.Snapshot) { dispatch.publish(snap); widgetUI.publish(snap); tuiMirror.publish(snap) },
+		OnSnapshot:          func(snap runway.Snapshot) { dispatch.publish(snap); widgetUI.publish(snap) },
 		OnEvent: func(e runway.Event) {
 			if e.Kind == runway.EventFullRefreshDone {
 				widgets.refresh()
@@ -313,7 +311,7 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 	rt := &liveApp{
 		host: opts.Host, pricing: prices, svc: svc, codex: codexStore, grokMod: mod, grok: bridge, claudeMod: cmod, claudeB: cbridge, reset: reset,
 		repo: repo, widgets: widgets, dispatch: dispatch, widgetDispatch: widgetUI, alertDispatch: alertUI, version: opts.Version, langs: langs,
-		liveSpeed: speedMon, tuiMirror: tuiMirror,
+		liveSpeed: speedMon,
 	}
 	rt.claudeDesktop = newClaudeDesktopManager(home, cmod)
 	bridge.pricingSnapshot = prices.manager.Snapshot
@@ -357,9 +355,6 @@ func (rt *liveApp) stop() {
 	rt.closePreferences()
 	rt.liveSpeed.Close()
 	rt.svc.Close()
-	if rt.tuiMirror != nil {
-		rt.tuiMirror.close()
-	}
 	if rt.repo != nil {
 		_ = rt.repo.Close()
 	}

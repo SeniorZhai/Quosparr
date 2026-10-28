@@ -57,6 +57,25 @@ func TestReadIgnoresAFinishedSession(t *testing.T) {
 	}
 }
 
+func TestReadSkipsEmptyCodexRoot(t *testing.T) {
+	home := t.TempDir()
+	t.Chdir(home)
+	if err := os.Mkdir("sessions", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	body := `{"timestamp":"` + now.Add(-time.Second).Format(time.RFC3339Nano) + `","type":"event_msg","payload":{"type":"task_started"}}` + "\n"
+	if err := os.WriteFile(filepath.Join("sessions", "session.jsonl"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, flights := Read(now, Homes{Codex: home}); len(flights) != 1 {
+		t.Fatal("fixture should contain a live Codex request")
+	}
+	if responses, flights := Read(now, Homes{}); len(responses) != 0 || len(flights) != 0 {
+		t.Fatal("empty root read sessions relative to the working directory")
+	}
+}
+
 func TestReadGrokPendingWithoutCompletedUsage(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	start := `{"ts":"` + now.Add(-4*time.Second).Format(time.RFC3339Nano) + `","type":"turn_started"}` + "\n"

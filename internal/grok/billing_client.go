@@ -43,11 +43,20 @@ type billingPart struct {
 
 // Fetch implements BillingFunc. The JSON is the snapshot's MarshalJSON.
 func (c *BillingClient) Fetch(ctx context.Context, homeDir string) (json.RawMessage, time.Time, error) {
+	token, err := accessTokenAt(homeDir)
+	if err != nil {
+		return nil, time.Time{}, err
+	}
+	return c.FetchToken(ctx, token)
+}
+
+// FetchToken reads billing for an in-memory credential without an auth file.
+func (c *BillingClient) FetchToken(ctx context.Context, token string) (json.RawMessage, time.Time, error) {
 	now := time.Now()
 	if c != nil && c.Now != nil {
 		now = c.Now()
 	}
-	snap, err := c.fetch(ctx, homeDir, now)
+	snap, err := c.fetch(ctx, token, now)
 	if err != nil {
 		return nil, time.Time{}, err
 	}
@@ -58,10 +67,9 @@ func (c *BillingClient) Fetch(ctx context.Context, homeDir string) (json.RawMess
 	return raw, now, nil
 }
 
-func (c *BillingClient) fetch(ctx context.Context, homeDir string, now time.Time) (BillingSnapshot, error) {
-	token, err := accessTokenAt(homeDir)
-	if err != nil {
-		return BillingSnapshot{}, err
+func (c *BillingClient) fetch(ctx context.Context, token string, now time.Time) (BillingSnapshot, error) {
+	if strings.TrimSpace(token) == "" {
+		return BillingSnapshot{}, ErrAuthenticationRequired
 	}
 	version := c.version()
 	creditsCh := c.asyncGET(ctx, "billing", "format=credits", token, version)

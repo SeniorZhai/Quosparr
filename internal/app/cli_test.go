@@ -22,6 +22,7 @@ func TestParseArgs(t *testing.T) {
 		{[]string{"--self-check"}, CommandSelfCheck},
 		{[]string{"--self-check", "--help"}, CommandHelp},
 		{[]string{"--tui"}, CommandTUI},
+		{[]string{"--setup"}, CommandTUI},
 		{[]string{"--tui", "--settings"}, CommandTUI},
 		{[]string{"--tui", "--self-check"}, CommandSelfCheck},
 		{[]string{"--tui", "--help"}, CommandHelp},

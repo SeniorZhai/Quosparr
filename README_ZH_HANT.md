@@ -135,11 +135,13 @@ Linux 需要 GTK3、AppIndicator、支援系統匣的桌面環境，以及可用
 
 ## 終端模式
 
-執行 `quosparr --tui`，在終端顯示浮動視窗所選供應商的額度條、餘額、重設倒數與即時 tok/s。macOS 使用 `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`；Windows 在安裝目錄執行 `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'`。
+在 App 中開啟 **進階 → 終端儀表板 → 安裝 TUI**。安裝後執行 `quosparr` 預設進入獨立的終端面板，也可使用 `quosparr --tui`；執行時不依賴桌面 App。供應商卡片顯示依額度健康狀態著色的額度條、餘額、重設倒數與即時 tok/s，並顯示重新整理狀態與自動重新整理週期。
 
-介面每秒更新並配合終端尺寸，按 `r` 重新整理，按 `q`、`Esc` 或 `Ctrl+C` 結束。桌面浮動視窗關閉時也可使用。沒有其他 Quosparr 執行個體時，TUI 依已儲存的代理與現有帳號規則獨立更新；其他執行個體運作時只鏡像其資料，`r` 重新讀取快照，不啟動第二組帳號更新。舊桌面版升級後需重新啟動才能提供鏡像。
+沒有 TUI 設定時會自動開啟設定精靈。執行 `quosparr --setup`，或在 TUI 內按 `c` 可重新設定。可以使用既有的官方 CLI 登入、手動輸入 API Key 與服務站點，或主動匯入桌面 App 目前的憑證。供應商選擇、語言與重新整理間隔儲存在 TUI 自己的設定中。
 
-私人檔案 `~/.quosparr/tui-snapshot.json` 只包含顯示值與時間戳記，不包含憑證或對話原文；快照缺失或過期時明確顯示無法使用。發布資料的執行個體結束後，重新開啟 TUI 即可獨立更新。
+介面每秒更新並配合終端尺寸；額度請求依照 TUI 儲存的重新整理間隔執行，預設為 5 分鐘。按 `r` 重新整理，按 `n` / `p` / `Tab` 在小型終端中切換供應商頁面，按 `q`、`Esc` 或 `Ctrl+C` 結束。
+
+私人檔案 `~/.quosparr/tui/config.json` 不含金鑰。TUI 憑證副本只存於 `~/.quosparr/accounts/<tui-id>/auth.json`（目錄 `0700`、檔案 `0600`；Windows 使用僅限目前使用者存取且停用繼承的 protected ACL）。匯入只讀取桌面 App 目前選取的憑證並複製必要欄位，不變更桌面 App 或官方登入。TUI 一般執行時不更新 OAuth token，也不修改官方登入；憑證到期時，請重新透過 CLI 登入或再次匯入。
 
 ## 桌面小工具
 
@@ -195,7 +197,7 @@ go build ./...
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
-HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run ./cmd/quosparr-tui
 ```
 
 自我檢查不會發出網路請求，也不讀取憑證。目前涵蓋版本、平台、自有目錄權限、鎖定狀態，以及 Codex auth 與工作階段索引是否存在；其餘診斷會標示為 `not ported yet`。
