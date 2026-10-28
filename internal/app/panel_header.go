@@ -16,7 +16,7 @@ import (
 // buttons, the provider strip, the identity row and the subscription chip.
 func panelHeader(c *ui.Context, a *App, l l10n.Localizer, prefs store.Preferences, snap runway.Snapshot, acts PanelActions) {
 	grokView := prefs.SelectedProvider == store.ProviderGrok
-	ui.Column(c).Padding(14, 16, 10, 16).Children(func() {
+	ui.Column(c).Padding(14, 16, 16, 16).Children(func() {
 		ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 			ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
 				// Center on the cap height rather than the line box, which reserves

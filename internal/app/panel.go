@@ -80,7 +80,7 @@ func (a *App) syncPanelAccount(snap runway.Snapshot, prefs store.Preferences) {
 func (a *App) panelMainPage(c *ui.Context, l l10n.Localizer, prefs store.Preferences, snap runway.Snapshot, acts PanelActions) {
 	panelHeader(c, a, l, prefs, snap, acts)
 	hairline(c)
-	ui.Scroll(c.Key("panel-main-scroll")).Grow(1).TrackScroll(&a.panelState.mainScroll).Children(func() {
+	ui.Scroll(c.Key("panel-main-scroll")).Grow(1).Margin(8, 0, 0, 0).TrackScroll(&a.panelState.mainScroll).Children(func() {
 		ui.Column(c).Padding(4, 16).Children(func() {
 			panelStartup(c, a, l)
 			panelBody(c, l, prefs, snap, acts, &a.panelState)
