@@ -26,6 +26,7 @@ type FloatingMeter struct {
 // FloatingProvider is one provider of the floating window. Without meters,
 // Status says why ("Log in", "Wait").
 type FloatingProvider struct {
+	LiveText string
 	Provider store.Provider
 	Name     string
 	Meters   []FloatingMeter
@@ -34,12 +35,25 @@ type FloatingProvider struct {
 
 // FloatingView is the data side of the floating window.
 type FloatingView struct {
+	Live      bool
 	Providers []FloatingProvider
 }
 
 // BuildFloating computes the floating window content for the preferences.
 func BuildFloating(lc l10n.Localizer, in StatusInputs) FloatingView {
 	var v FloatingView
+	if live, ok := liveStatus(lc, in); ok {
+		v.Live = true
+		for _, component := range live.Components {
+			cell := component.Cells[0]
+			item := FloatingProvider{Provider: component.Provider, Name: lc.Text(providerStatusKey(component.Provider)), LiveText: cell.MeterText}
+			if cell.Gauge {
+				item.Meters = []FloatingMeter{{RemainingPercent: cell.Remaining, Health: cell.Health}}
+			}
+			v.Providers = append(v.Providers, item)
+		}
+		return v
+	}
 	for _, p := range in.Prefs.FloatingSelection() {
 		item := FloatingProvider{Provider: p, Name: lc.Text(providerStatusKey(p))}
 		if p == store.ProviderClaude && in.Claude.RemoteUsage {

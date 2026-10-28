@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/licoy/quosparr/internal/l10n"
+	"github.com/licoy/quosparr/internal/runway"
 	"github.com/licoy/quosparr/internal/store"
 )
 
@@ -150,5 +151,66 @@ func TestExportFloatingStylesReview(t *testing.T) {
 		u.s.SetFloatingWindow(func(f *store.FloatingWindow) { f.Enabled = true; f.Style = store.FloatingStyleCard })
 		tt := ui.NewTester(u.view, settingsWidth, settingsHeight*3)
 		exportReviewPNG(t, tt, filepath.Join(dir, string(language)+"-settings.png"))
+	}
+}
+
+func TestFloatingLiveRatesStaySideBySideForEveryStyle(t *testing.T) {
+	v := runway.BuildFloating(l10n.New(l10n.English), runway.StatusInputs{
+		Live: []runway.LivePart{
+			{Provider: store.ProviderCodex, Text: "125.5 tok/s"},
+			{Provider: store.ProviderClaude, Text: "84 tok/s"},
+			{Provider: store.ProviderGrok, Text: "46.3 tok/s"},
+		},
+	})
+	one := v
+	one.Providers = v.Providers[:1]
+	for _, style := range store.FloatingStyles() {
+		w, h := floatingSize(style, v, "")
+		w1, h1 := floatingSize(style, one, "")
+		if w <= w1 || h != h1 || h != capsuleH {
+			t.Fatalf("live layout stacked or clipped: %v %v/%v vs %v/%v", style, w, h, w1, h1)
+		}
+		for _, item := range v.Providers {
+			main, second, mw, _ := capsuleParts(item, "")
+			if main != item.LiveText || second != "" || mw < floatingTextWidth(main, floatingFont(14, 650, "")) {
+				t.Fatal("live rate replaced by quota")
+			}
+		}
+	}
+	tip := floatingTooltip(v)
+	for _, want := range []string{"Codex: 125.5 tok/s", "Claude: 84 tok/s", "Grok: 46.3 tok/s"} {
+		if !strings.Contains(tip, want) {
+			t.Fatalf("missing rate tooltip: %s", tip)
+		}
+	}
+	if os.Getenv("RUNWAY_FLOATING_QA") != "" {
+		w, h := floatingSize(store.FloatingStyleCard, v, "")
+		tt := ui.NewTester(func(c *ui.Context) {
+			ui.Box(c).Fill().Draw(func(p *ui.Painter, r ui.Rect) {
+				drawFloating(p, r, store.FloatingStyleCard, v, floatingInkFor(c.Theme()), "", 14)
+			})
+		}, int(w), int(h))
+		tt.SetDark(true)
+		tt.SetScale(2)
+		dir := filepath.Join("..", "..", ".build", "v1-floating-qa")
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		exportReviewPNG(t, tt, filepath.Join(dir, "live-rates.png"))
+	}
+}
+
+func TestFloatingTextIsWhiteInBothAppearances(t *testing.T) {
+	for _, dark := range []bool{false, true} {
+		ink := floatingInkFor(buildTheme(dark))
+		white := ui.RGB(255, 255, 255)
+		if ink.text != white || contrastRatio(ink.text, ink.bg) < 4.5 {
+			t.Fatal("floating text is not readable white")
+		}
+		for _, h := range []runway.Health{runway.HealthGreen, runway.HealthYellow, runway.HealthRed} {
+			if ink.level(h, true) != white {
+				t.Fatal("quota text changed color with health")
+			}
+		}
 	}
 }

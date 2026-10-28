@@ -13,29 +13,21 @@ import (
 // The floating window is drawn by one painter, so the window can take the
 // exact size the same layout computes (floatingSize). Sizes are DIPs.
 
-// floatingInk are the colors of one appearance.
+// floatingInk keeps floating text white on a dark surface in both appearances.
 type floatingInk struct {
 	bg, border, text, muted, track ui.Color
-	dark                           bool
 }
 
-func floatingInkFor(t *ui.Theme) floatingInk {
-	if t.Dark {
-		return floatingInk{bg: ui.Hex("#1F1F21"), border: ui.RGBA(255, 255, 255, 0.12), text: ui.Hex("#F5F5F7"),
-			muted: ui.RGBA(235, 235, 245, 0.6), track: ui.RGBA(255, 255, 255, 0.14), dark: true}
-	}
-	return floatingInk{bg: ui.Hex("#FFFFFF"), border: ui.RGBA(0, 0, 0, 0.1), text: ui.Hex("#1D1D1F"),
-		muted: ui.RGBA(60, 60, 67, 0.62), track: ui.RGBA(0, 0, 0, 0.09)}
+func floatingInkFor(_ *ui.Theme) floatingInk {
+	return floatingInk{bg: ui.Hex("#1F1F21"), border: ui.RGBA(255, 255, 255, 0.12), text: ui.RGB(255, 255, 255),
+		muted: ui.RGBA(255, 255, 255, 0.7), track: ui.RGBA(255, 255, 255, 0.14)}
 }
 
-// level is the health color as a fill; as text on a light card it is
-// darkened to stay readable.
 func (k floatingInk) level(h runway.Health, text bool) ui.Color {
-	c := trayLevelColor(h, true)
-	if text && !k.dark {
-		return c.Mix(ui.RGB(0, 0, 0), 0.28)
+	if text {
+		return k.text
 	}
-	return c
+	return trayLevelColor(h, true)
 }
 
 func floatingFont(size float32, weight int, family string) ui.Font {
@@ -111,6 +103,9 @@ func floatingStyleRadius(style store.FloatingStyle, h float32) float32 {
 
 // floatingSize is the window content size for the style and view.
 func floatingSize(style store.FloatingStyle, v runway.FloatingView, family string) (float32, float32) {
+	if v.Live {
+		return capsuleSize(v, family)
+	}
 	switch style {
 	case store.FloatingStyleCard:
 		return cardSize(v, family)
@@ -125,6 +120,10 @@ func floatingSize(style store.FloatingStyle, v runway.FloatingView, family strin
 // drawFloating paints the whole window: the card with corners of radius,
 // then the style's content.
 func drawFloating(p *ui.Painter, r ui.Rect, style store.FloatingStyle, v runway.FloatingView, k floatingInk, family string, radius float32) {
+	if v.Live {
+		style = store.FloatingStyleCapsule
+		radius = floatingCornerRadius(style, r.H)
+	}
 	p.Fill(r, k.bg, radius)
 	if radius > 0 {
 		p.Stroke(r, k.border, radius, 1)
@@ -151,6 +150,9 @@ const (
 )
 
 func capsuleParts(item runway.FloatingProvider, family string) (main, second string, mainW, secondW float32) {
+	if item.LiveText != "" {
+		return item.LiveText, "", floatingTextWidth(item.LiveText, floatingFont(14, 650, family)), 0
+	}
 	if len(item.Meters) == 0 {
 		w := min(capsuleStatusW, floatingTextWidth(item.Status, floatingFont(12, 500, family)))
 		return item.Status, "", w, 0
@@ -194,6 +196,17 @@ func drawCapsule(p *ui.Painter, r ui.Rect, v runway.FloatingView, k floatingInk,
 		floatingProviderIcon(p, item.Provider, ui.Rect{X: x, Y: cy - 8, W: 16, H: 16}, k)
 		x += 22
 		main, second, mw, sw := capsuleParts(item, family)
+		if item.LiveText != "" {
+			floatingText(p, main, floatingFont(14, 650, family), x, cy-1, 0, k.text)
+			if len(item.Meters) > 0 {
+				bar := ui.Rect{X: x, Y: cy + 10, W: mw, H: 2}
+				p.Fill(bar, k.track, 1)
+				bar.W *= float32(min(100, max(0, item.Meters[0].RemainingPercent))) / 100
+				p.Fill(bar, k.level(item.Meters[0].Health, false), 1)
+			}
+			x += mw
+			continue
+		}
 		if len(item.Meters) == 0 {
 			floatingText(p, main, floatingFont(12, 500, family), x, cy, capsuleStatusW, k.muted)
 			x += mw
@@ -422,6 +435,10 @@ func drawFloatingBattery(p *ui.Painter, body ui.Rect, m runway.FloatingMeter, k 
 func floatingTooltip(v runway.FloatingView) string {
 	lines := make([]string, 0, len(v.Providers))
 	for _, item := range v.Providers {
+		if item.LiveText != "" {
+			lines = append(lines, item.Name+": "+item.LiveText)
+			continue
+		}
 		if len(item.Meters) == 0 {
 			lines = append(lines, item.Name+": "+item.Status)
 			continue

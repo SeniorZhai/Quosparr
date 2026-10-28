@@ -226,12 +226,16 @@ func TestPublishPutsLiveSpeedOnTheStatusBar(t *testing.T) {
 	if bar.Components[0].Provider != store.ProviderClaude || bar.Components[1].Provider != store.ProviderGrok {
 		t.Fatalf("providers = %+v", bar.Components)
 	}
-	if len(snap.Floating.Providers) != 1 || snap.Floating.Providers[0].Provider != store.ProviderCodex {
+	if !snap.Floating.Live || len(snap.Floating.Providers) != 2 || snap.Floating.Providers[0].Provider != store.ProviderClaude || snap.Floating.Providers[1].Provider != store.ProviderGrok || snap.Floating.Providers[0].LiveText != "42.4 tok/s" {
 		t.Fatalf("floating = %+v", snap.Floating)
 	}
 	parts = nil
 	s.publish()
-	bar = s.Snapshot().StatusBar
+	snap = s.Snapshot()
+	bar = snap.StatusBar
+	if snap.Floating.Live || len(snap.Floating.Providers) != 1 || snap.Floating.Providers[0].Provider != store.ProviderCodex {
+		t.Fatalf("floating quota did not return: %+v", snap.Floating)
+	}
 	if bar.Style != store.StatusBarStyleMeters || bar.Components[0].Cells[0].Percent == "42.4 tok/s" {
 		t.Fatalf("quota did not return: %+v", bar)
 	}

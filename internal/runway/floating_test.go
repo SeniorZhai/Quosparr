@@ -53,3 +53,27 @@ func TestFloatingWithOnlyModelSpecificWindowShowsIt(t *testing.T) {
 		t.Errorf("no meters = %+v", got)
 	}
 }
+
+func TestFloatingLiveMatchesStatusBarAndRestoresQuota(t *testing.T) {
+	in := StatusInputs{Prefs: store.DefaultPreferences(), Now: time.Now(),
+		CodexMeters: []Meter{testMeter("5h", 20, FiveHourMinutes, SourceStandard)},
+		Live:        []LivePart{{Provider: store.ProviderCodex, Text: "42 tok/s"}, {Provider: store.ProviderClaude, Text: "8 tok/s"}, {Provider: store.ProviderGrok, Text: "3 tok/s"}}}
+	v := BuildFloating(zh, in)
+	if !v.Live || len(v.Providers) != 3 {
+		t.Fatalf("live view: %+v", v)
+	}
+	status := BuildStatusBar(zh, in)
+	for i, p := range v.Providers {
+		if p.LiveText != status.Components[i].Cells[0].MeterText || p.Provider != status.Components[i].Provider {
+			t.Fatal("floating speed differs from menu bar")
+		}
+	}
+	if len(v.Providers[0].Meters) != 1 || v.Providers[0].Meters[0].RemainingPercent != 80 {
+		t.Fatal("quota gauge missing")
+	}
+	in.Live = nil
+	idle := BuildFloating(zh, in)
+	if idle.Live || idle.Providers[0].LiveText != "" || len(idle.Providers[0].Meters) == 0 {
+		t.Fatalf("idle did not restore quotas: %+v", idle)
+	}
+}
