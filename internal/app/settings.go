@@ -64,7 +64,8 @@ type Settings struct {
 	saveResults         []settingsSaveResult
 	saveDeliveryPending bool
 
-	onChange []func()
+	onChange         []func()
+	floatingPosition func() *store.FloatingPosition
 }
 
 type settingsSaveResult struct {

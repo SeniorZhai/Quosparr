@@ -53,7 +53,13 @@ type floatingDrag struct {
 
 // SetFloatingWindow changes the floating window settings.
 func (s *Settings) SetFloatingWindow(change func(*store.FloatingWindow)) bool {
-	return s.Update(func(p *store.Preferences) { change(&p.FloatingWindow) })
+	return s.Update(func(p *store.Preferences) {
+		locked := p.FloatingWindow.Locked
+		change(&p.FloatingWindow)
+		if !locked && p.FloatingWindow.Locked && s.floatingPosition != nil {
+			p.FloatingWindow.LockedPosition = s.floatingPosition()
+		}
+	})
 }
 
 // floatingContent is what the window shows: the coordinator's view, or the
@@ -132,6 +138,10 @@ func (a *App) openFloating(prefs store.Preferences, w, h int) {
 		MinHeight: 1,
 	})
 	a.floating.win = win
+	a.settings.floatingPosition = func() *store.FloatingPosition {
+		x, y := win.Position()
+		return &store.FloatingPosition{X: x, Y: y}
+	}
 	// The saved state brings back the last size too; the content decides
 	// it, from the edge the window keeps when it resizes.
 	a.resizeFloating(w, h)
@@ -145,8 +155,13 @@ func (a *App) openFloating(prefs store.Preferences, w, h int) {
 		if a.floating.win == win {
 			a.stopFloatingWatchers()
 			a.floating = floatingState{}
+			a.settings.floatingPosition = nil
 		}
 	})
+	if f.Locked && f.LockedPosition == nil {
+		position := a.settings.floatingPosition()
+		a.settings.SetFloatingWindow(func(f *store.FloatingWindow) { f.LockedPosition = position })
+	}
 	a.floating.offDisplays = mygo.Screen.OnDisplaysChanged(a.keepFloatingOnScreen)
 	if a.floating.followKey != "" {
 		// Hidden until the app in front is known.
@@ -258,8 +273,8 @@ func (a *App) showFloatingIfDue() {
 	}
 }
 
-// resizeFloating fits the window to new content, keeping its vertical
-// center and the edge nearer the side of the display it is on.
+// resizeFloating fits the window to new content, preserving the locked
+// position or the nearer edge and vertical center when unlocked.
 func (a *App) resizeFloating(w, h int) {
 	win := a.floating.win
 	b := win.Bounds()
@@ -268,8 +283,15 @@ func (a *App) resizeFloating(w, h int) {
 	win.SetContentSize(w, h)
 	nb := win.Bounds()
 	x, y := floatingAnchor(b, nb.Width, nb.Height, area)
-	nb.X, nb.Y = clampFloating(mygo.Rectangle{X: x, Y: y, Width: nb.Width, Height: nb.Height}, area)
-	win.SetPosition(nb.X, nb.Y)
+	x, y = clampFloating(mygo.Rectangle{X: x, Y: y, Width: nb.Width, Height: nb.Height}, area)
+	if f := a.settings.Prefs().FloatingWindow; f.Locked {
+		position := store.FloatingPosition{X: b.X, Y: b.Y}
+		if f.LockedPosition != nil {
+			position = *f.LockedPosition
+		}
+		x, y = floatingLockedPosition(position, nb.Width, nb.Height, mygo.Screen.Displays())
+	}
+	win.SetPosition(x, y)
 }
 
 // floatingAnchor is where a window at b goes when it becomes w by h: on
@@ -302,6 +324,7 @@ func (a *App) closeFloating() {
 	}
 	a.stopFloatingWatchers()
 	a.floating = floatingState{}
+	a.settings.floatingPosition = nil
 	win.Close()
 }
 
@@ -324,9 +347,36 @@ func (a *App) keepFloatingOnScreen() {
 	}
 	b := win.Bounds()
 	x, y := clampFloating(b, mygo.Screen.DisplayMatching(b).WorkArea)
+	if f := a.settings.Prefs().FloatingWindow; f.Locked && f.LockedPosition != nil {
+		x, y = floatingLockedPosition(*f.LockedPosition, b.Width, b.Height, mygo.Screen.Displays())
+	}
 	if x != b.X || y != b.Y {
 		win.SetPosition(x, y)
 	}
+}
+
+func floatingLockedPosition(position store.FloatingPosition, w, h int, displays []mygo.Display) (int, int) {
+	var fallback mygo.Rectangle
+	for _, display := range displays {
+		area := display.WorkArea
+		if area.Width <= 0 || area.Height <= 0 {
+			continue
+		}
+		if display.Primary || fallback.Width == 0 {
+			fallback = area
+		}
+		if w <= area.Width && h <= area.Height && position.X >= area.X && position.Y >= area.Y &&
+			position.X <= area.X+area.Width-w && position.Y <= area.Y+area.Height-h {
+			return position.X, position.Y
+		}
+	}
+	if fallback.Width == 0 {
+		return position.X, position.Y
+	}
+	return clampFloating(mygo.Rectangle{
+		X: fallback.X + fallback.Width - w - floatingMargin, Y: fallback.Y + (fallback.Height-h)/2,
+		Width: w, Height: h,
+	}, fallback)
 }
 
 // clampFloating is the position that keeps b inside area, by the margin

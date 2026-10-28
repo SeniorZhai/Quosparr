@@ -50,6 +50,82 @@ func TestFloatingAnchorKeepsTheNearEdgeAndTheCenter(t *testing.T) {
 	}
 }
 
+func TestFloatingLockedPositionOnlyFallsBackWhenItDoesNotFit(t *testing.T) {
+	displays := []mygo.Display{
+		{Primary: true, WorkArea: mygo.Rectangle{X: 0, Y: 25, Width: 1440, Height: 875}},
+		{WorkArea: mygo.Rectangle{X: -1920, Y: 0, Width: 1920, Height: 1080}},
+	}
+	cases := []struct {
+		name   string
+		point  store.FloatingPosition
+		w, h   int
+		wx, wy int
+	}{
+		{"preserves the chosen position", store.FloatingPosition{X: 100, Y: 100}, 200, 40, 100, 100},
+		{"larger content keeps its position", store.FloatingPosition{X: 100, Y: 100}, 400, 140, 100, 100},
+		{"another display", store.FloatingPosition{X: -1800, Y: 0}, 200, 40, -1800, 0},
+		{"missing display", store.FloatingPosition{X: 3000, Y: 100}, 200, 40, 1208, 442},
+		{"content no longer fits", store.FloatingPosition{X: 1300, Y: 100}, 200, 40, 1208, 442},
+		{"oversized content", store.FloatingPosition{X: 100, Y: 100}, 2000, 1000, 0, 25},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			x, y := floatingLockedPosition(tc.point, tc.w, tc.h, displays)
+			if x != tc.wx || y != tc.wy {
+				t.Fatalf("position = (%d, %d), want (%d, %d)", x, y, tc.wx, tc.wy)
+			}
+		})
+	}
+	point := store.FloatingPosition{X: -1800, Y: 0}
+	if x, y := floatingLockedPosition(point, 200, 40, displays[:1]); x != 1208 || y != 442 {
+		t.Fatalf("disconnected display did not use the default: (%d, %d)", x, y)
+	}
+	if x, y := floatingLockedPosition(point, 200, 40, displays); x != point.X || y != point.Y {
+		t.Fatalf("reconnected display lost the chosen position: (%d, %d)", x, y)
+	}
+	if x, y := floatingLockedPosition(point, 200, 40, nil); x != point.X || y != point.Y {
+		t.Fatalf("temporarily missing screen information moved the window: (%d, %d)", x, y)
+	}
+}
+
+func TestFloatingLockSavesPositionWithThePreference(t *testing.T) {
+	e := newEnv(t, nil)
+	if err := e.s.Load(); err != nil {
+		t.Fatal(err)
+	}
+	position := store.FloatingPosition{X: -800, Y: 120}
+	e.s.floatingPosition = func() *store.FloatingPosition { p := position; return &p }
+	e.s.SetFloatingWindow(func(f *store.FloatingWindow) { f.Locked = true })
+	e.settle()
+	locked := e.stored().FloatingWindow
+	if !locked.Locked || locked.LockedPosition == nil || *locked.LockedPosition != position {
+		t.Fatalf("lock and position were not saved together: %+v", locked)
+	}
+	position = store.FloatingPosition{X: 400, Y: 300}
+	e.s.SetFloatingWindow(func(f *store.FloatingWindow) { f.Style = store.FloatingStyleCard })
+	e.settle()
+	if got := e.stored().FloatingWindow.LockedPosition; *got != *locked.LockedPosition {
+		t.Fatalf("a style change replaced the locked position: %+v", got)
+	}
+	e.s.SetFloatingWindow(func(f *store.FloatingWindow) { f.Locked = false })
+	e.settle()
+	if e.stored().FloatingWindow.LockedPosition != nil {
+		t.Fatal("unlock did not clear the stored position")
+	}
+	e.mem.fail.Store(true)
+	e.s.SetFloatingWindow(func(f *store.FloatingWindow) { f.Locked = true })
+	e.settle()
+	if got := e.s.Prefs().FloatingWindow; got.Locked || got.LockedPosition != nil || e.s.SaveError() == nil {
+		t.Fatalf("failed save retained the lock or position: %+v", got)
+	}
+	e.mem.fail.Store(false)
+	e.s.SetFloatingWindow(func(f *store.FloatingWindow) { f.Locked = true })
+	e.settle()
+	if got := e.stored().FloatingWindow.LockedPosition; got == nil || *got != position {
+		t.Fatalf("relocking did not capture the new position: %+v", got)
+	}
+}
+
 func TestFloatingStylesHaveTheirOwnSizes(t *testing.T) {
 	l := l10n.New(l10n.English)
 	v := floatingSample(l)

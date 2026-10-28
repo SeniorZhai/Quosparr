@@ -16,7 +16,8 @@ func TestFloatingWindowIsGoOnlyAndOmittedByDefault(t *testing.T) {
 	}
 	p := DefaultPreferences()
 	p.FloatingWindow = FloatingWindow{Enabled: true, Style: FloatingStyleRings, Providers: []Provider{ProviderGrok, ProviderCodex}, Opacity: 80, Locked: true, OverFullScreen: true,
-		AppFilter: FloatingAppFilterAllow, Apps: []FloatingApp{{ID: "com.openai.codex", Name: "Codex", Path: "/Applications/Codex.app"}}, HideOffList: true}
+		LockedPosition: &FloatingPosition{X: -800, Y: 120},
+		AppFilter:      FloatingAppFilterAllow, Apps: []FloatingApp{{ID: "com.openai.codex", Name: "Codex", Path: "/Applications/Codex.app"}}, HideOffList: true}
 	if enc, err = EncodePreferences(p); err != nil {
 		t.Fatal(err)
 	}
@@ -28,14 +29,31 @@ func TestFloatingWindowIsGoOnlyAndOmittedByDefault(t *testing.T) {
 	}
 }
 
+func TestFloatingLockedPositionIsClonedAndClearedOnUnlock(t *testing.T) {
+	f := FloatingWindow{Locked: true, LockedPosition: &FloatingPosition{X: -800, Y: 120}}
+	c := f.clone()
+	c.LockedPosition.X = 40
+	if f.LockedPosition.X != -800 {
+		t.Fatal("clone shares the locked position")
+	}
+	f.Locked = false
+	f.normalize()
+	if f.LockedPosition != nil {
+		t.Fatal("unlock retained a stale locked position")
+	}
+}
+
 func TestFloatingWindowDecodesLeniently(t *testing.T) {
 	for raw, want := range map[string]FloatingWindow{
-		`12`:                              {},
-		`{"enabled":"yes"}`:               {},
-		`{"style":"nope","enabled":true}`: {Enabled: true},
-		`{"opacity":5}`:                   {Opacity: MinFloatingOpacity},
-		`{"opacity":100}`:                 {},
-		`{"opacity":150}`:                 {},
+		`12`:                                   {},
+		`{"enabled":"yes"}`:                    {},
+		`{"style":"nope","enabled":true}`:      {Enabled: true},
+		`{"opacity":5}`:                        {Opacity: MinFloatingOpacity},
+		`{"opacity":100}`:                      {},
+		`{"opacity":150}`:                      {},
+		`{"lockedPosition":{"x":100,"y":100}}`: {},
+		`{"locked":true}`:                      {Locked: true},
+		`{"locked":true,"lockedPosition":{"x":0,"y":0}}`:       {Locked: true, LockedPosition: &FloatingPosition{}},
 		`{"providers":["x","claude","claude","codex","grok"]}`: {Providers: []Provider{ProviderCodex, ProviderClaude, ProviderGrok}},
 		`{"providers":[]}`:      {},
 		`{"appFilter":"maybe"}`: {},

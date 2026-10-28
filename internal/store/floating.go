@@ -48,6 +48,8 @@ type FloatingWindow struct {
 	// Opacity is in percent; 0 stands for fully opaque.
 	Opacity int  `json:"opacity,omitempty"`
 	Locked  bool `json:"locked,omitempty"`
+	// LockedPosition is the chosen screen position, independent of content size.
+	LockedPosition *FloatingPosition `json:"lockedPosition,omitempty"`
 	// OverFullScreen keeps the window on screen while another app is full
 	// screen; otherwise it steps aside.
 	OverFullScreen bool `json:"overFullScreen,omitempty"`
@@ -57,6 +59,11 @@ type FloatingWindow struct {
 	// HideOffList hides the window, with the allow list, while an app off
 	// the list is in front; otherwise it stays on screen, no longer on top.
 	HideOffList bool `json:"hideOffList,omitempty"`
+}
+
+type FloatingPosition struct {
+	X int `json:"x"`
+	Y int `json:"y"`
 }
 
 // FloatingAppFilter is how the app in front shows or hides the floating
@@ -106,12 +113,19 @@ func (f FloatingWindow) OpacityPercent() int {
 func (f FloatingWindow) clone() FloatingWindow {
 	f.Providers = slices.Clone(f.Providers)
 	f.Apps = slices.Clone(f.Apps)
+	if f.LockedPosition != nil {
+		position := *f.LockedPosition
+		f.LockedPosition = &position
+	}
 	return f
 }
 
 // normalize drops unknown styles and providers and clamps the opacity, with
 // full opacity stored as the default.
 func (f *FloatingWindow) normalize() {
+	if !f.Locked {
+		f.LockedPosition = nil
+	}
 	if !f.Style.Valid() {
 		f.Style = FloatingStyleCapsule
 	}

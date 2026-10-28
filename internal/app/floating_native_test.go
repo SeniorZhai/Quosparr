@@ -84,6 +84,8 @@ func runNativeFloatingHost() error {
 	s.prefs.FloatingWindow = store.FloatingWindow{Enabled: true, Style: store.FloatingStyleRings, Providers: store.Providers()[:1], OverFullScreen: true}
 	s.persisted = s.prefs.Clone()
 	a := New(Options{Version: "synthetic", Settings: s})
+	// This host drives window changes directly, without a tray or its callbacks.
+	s.onChange = nil
 	a.snap.Floating = floatingSample(a.L())
 	a.snap.Floating.Providers = append(a.snap.Floating.Providers, a.snap.Floating.Providers[0])
 	a.snap.Floating.Providers[2].Provider = store.ProviderGrok
@@ -170,6 +172,54 @@ func (h *nativeFloatingHost) run() {
 		h.err = err
 		return
 	}
+	a.floating.win.SetPosition(area.X+60, area.Y+120)
+	position := a.settings.floatingPosition()
+	a.settings.SetFloatingWindow(func(f *store.FloatingWindow) { f.Locked = true })
+	a.settings.Flush()
+	for _, style := range store.FloatingStyles() {
+		a.settings.prefs.FloatingWindow.Style = style
+		a.snap.Floating.Providers = a.snap.Floating.Providers[:3]
+		w, height = a.floatingWindowSize(a.settings.Prefs())
+		a.resizeFloating(w, height)
+		if x, y := a.floating.win.Position(); absInt(x-position.X) > 1 || absInt(y-position.Y) > 1 {
+			h.err = fmt.Errorf("locked style %q moved to (%d, %d), want %+v", style, x, y, position)
+			return
+		}
+	}
+	// A transient fallback must not replace the chosen point on the next launch.
+	a.floating.win.SetPosition(area.X+200, area.Y+200)
+	a.closeFloating()
+	settings := NewSettings(a.settings.st, System{}, UnavailableCredentials{})
+	if err := settings.Load(); err != nil {
+		h.err = err
+		return
+	}
+	reopened := New(Options{Version: "synthetic", Settings: settings})
+	settings.onChange = nil
+	reopened.snap = a.snap
+	a, h.app = reopened, reopened
+	w, height = a.floatingWindowSize(settings.Prefs())
+	a.openFloating(settings.Prefs(), w, height)
+	if x, y := a.floating.win.Position(); absInt(x-position.X) > 1 || absInt(y-position.Y) > 1 {
+		h.err = fmt.Errorf("reopened locked window moved to (%d, %d), want %+v", x, y, position)
+		return
+	}
+	fallback := &store.FloatingPosition{X: area.X + 100*area.Width, Y: area.Y}
+	a.settings.prefs.FloatingWindow.LockedPosition = fallback
+	a.keepFloatingOnScreen()
+	b := a.floating.win.Bounds()
+	wantX, wantY := floatingLockedPosition(*fallback, b.Width, b.Height, mygo.Screen.Displays())
+	if b.X != wantX || b.Y != wantY || *a.settings.Prefs().FloatingWindow.LockedPosition != *fallback {
+		h.err = fmt.Errorf("invalid locked position: bounds %+v, want default (%d, %d) without replacing the saved point", b, wantX, wantY)
+		return
+	}
+	a.settings.prefs.FloatingWindow.LockedPosition = position
+	a.keepFloatingOnScreen()
+	if x, y := a.floating.win.Position(); absInt(x-position.X) > 1 || absInt(y-position.Y) > 1 {
+		h.err = fmt.Errorf("available locked position was not restored: (%d, %d), want %+v", x, y, position)
+		return
+	}
+	fmt.Printf("native floating locked position: resize, reopen and fallback passed at %+v\n", position)
 	// The window server lists the window on screen once the event loop ran.
 	quit = false
 	go func() {
