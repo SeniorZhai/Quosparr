@@ -34,9 +34,71 @@ func TestParseFrontmatterRejectsMalformedInput(t *testing.T) {
 		"---\nname: \"unterminated\n---\n",
 		"---\ninvalid line\n---\n",
 		"---\nname: [one, 'two]\n---\n",
+		"---\ndescription: \"first\"\n  second\n---\n",
+		"---\ndescription: 'first'\n  second\n---\n",
+		"---\ndescription: [first]\n  second\n---\n",
+		"---\ndescription: first # comment\n  second\n---\n",
+		"---\ndescription: first\t# comment\n  second\n---\n",
+		"---\ndescription: first\n  second # comment\n  third\n---\n",
+		"---\ndescription: first\n  second\t# comment\n  third\n---\n",
+		"---\ndescription: first\n  # comment\n  second\n---\n",
+		"---\ndescription: first\n  nested: value\n---\n",
+		"---\ndescription: first\n  nested:\n---\n",
+		"---\ndescription: first\n  nested:\tvalue\n---\n",
+		"---\ndescription: first\n\tsecond\n---\n",
 	} {
 		if _, _, err := parseFrontmatter([]byte(data)); err == nil {
 			t.Fatalf("accepted malformed frontmatter %q", data)
+		}
+	}
+}
+
+func TestParseFrontmatterPlainContinuations(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		text string
+		want string
+	}{
+		{name: "wrapped", text: "first line\n  second line\n  third line", want: "first line second line third line"},
+		{name: "blank and varying indentation", text: "first\n    second\n\n  third", want: "first second third"},
+		{name: "literal continuation", text: "first\n  'quoted'\n  [list-like]\n  - marker\n  ? question\n  https://example.com/x#y", want: "first 'quoted' [list-like] - marker ? question https://example.com/x#y"},
+		{name: "trailing comment", text: "first\n  second # note: ignored", want: "first second"},
+		{name: "trailing tab comment", text: "first\n  second\t# note: ignored", want: "first second"},
+		{name: "separate comment", text: "first\n  second\n  # comment", want: "first second"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			data := []byte("---\nname: plain\ndescription: " + tc.text + "\nlicense: terms\nmetadata:\n  short-description: short\n    text\n  author: tester\n  keywords:\n  - one\n  - two\n---\nBody\n")
+			front, start, err := parseFrontmatter(data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if front.field("description") != tc.want || front.field("license") != "terms" {
+				t.Fatalf("plain scalar = %#v", front.values)
+			}
+			if front.metadata["short-description"] != "short text" || front.metadata["author"] != "tester" || front.metadata["keywords"] != "one, two" {
+				t.Fatalf("nested values = %#v", front.metadata)
+			}
+			if string(data[start:]) != "Body\n" {
+				t.Fatalf("body starts at %d: %q", start, data[start:])
+			}
+		})
+	}
+}
+
+func TestLoadSkillPlainDescription(t *testing.T) {
+	for _, eol := range []string{"\n", "\r\n"} {
+		home := t.TempDir()
+		env, _ := normalizeEnv(Env{Home: home})
+		file := filepath.Join(home, "skills", "plain", "SKILL.md")
+		content := strings.Join([]string{"---", "name: plain", "description: first line", "  second line", "  third line", "metadata:", "  keywords:", "  - one", "  - two", "---", "Body", ""}, eol)
+		commonWriteFile(t, file, content)
+		skill, issues, err := loadSkill(env, ProviderCodex, newRoot(env, filepath.Join(home, "skills"), ScopeUser), file)
+		if err != nil || len(issues) != 0 || skill.State != StateOn || skill.Description != "first line second line third line" {
+			t.Fatalf("plain description = %q, state %q, %#v, %v", skill.Description, skill.State, issues, err)
+		}
+		body, truncated, err := ReadBody(skill)
+		if err != nil || truncated || body != "Body"+eol {
+			t.Fatalf("plain body = %q, %v, %v", body, truncated, err)
 		}
 	}
 }

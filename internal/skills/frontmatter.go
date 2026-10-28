@@ -111,7 +111,31 @@ func parseValue(lines []string, index, end, indent int, raw string) (string, int
 		return strings.Join(items, ", "), i, nil
 	}
 	value, err := parseScalar(raw)
-	return value, index + 1, err
+	if err != nil || strings.ContainsAny(raw[:1], "\"'[{#") || stripPlainComment(raw) != raw {
+		return value, index + 1, err
+	}
+	values := []string{value}
+	index++
+	for index < end {
+		line := strings.TrimSpace(lines[index])
+		if line == "" {
+			index++
+			continue
+		}
+		if leadingSpaces(lines[index]) <= indent || strings.HasPrefix(line, "#") {
+			break
+		}
+		text := stripPlainComment(line)
+		if strings.Contains(text, ": ") || strings.Contains(text, ":\t") || strings.HasSuffix(text, ":") {
+			return "", 0, errInvalidFrontmatter
+		}
+		values = append(values, text)
+		index++
+		if text != line {
+			break
+		}
+	}
+	return singleLine(strings.Join(values, " ")), index, nil
 }
 
 func parseBlock(lines []string, index, end, parentIndent int, folded bool) (string, int, error) {
@@ -240,8 +264,10 @@ func splitKeyValue(line string) (string, string, bool) {
 }
 
 func stripPlainComment(value string) string {
-	if index := strings.Index(value, " #"); index >= 0 {
-		return value[:index]
+	for index := 1; index < len(value); index++ {
+		if value[index] == '#' && (value[index-1] == ' ' || value[index-1] == '\t') {
+			return value[:index-1]
+		}
 	}
 	return value
 }
