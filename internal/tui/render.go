@@ -2,8 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"math"
-	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -47,7 +45,7 @@ func paired(left, right string, width int) string {
 	return left + strings.Repeat(" ", max(0, width-cells(left)-cells(right))) + right
 }
 
-func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffset int, now time.Time, color bool) string {
+func renderDashboard(l l10n.Localizer, view View, columns, rows, page, historyOffset int, mode usage.HeatmapMode, now time.Time, color bool) string {
 	w := max(0, columns-1)
 	if w == 0 || rows <= 0 {
 		return ""
@@ -55,7 +53,7 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 	dim, bright, accent := "38;5;245", "1;38;5;255", "38;5;114"
 	footer := "r " + l.Text(l10n.KeyRefresh) + "   c " + l.TUI("configure") + "   q/Esc " + l.Text(l10n.KeyQuit)
 	if len(view.History) > 0 {
-		footer = "[/] " + l.TUI("historyMonth") + "  0 " + l.TUI("historyThisMonth") + "   " + footer
+		footer = "1/2/3 " + l.TUI("historyMode") + "  [/] " + l.TUI("historyScroll") + "  0 " + l.TUI("historyLatest") + "   " + footer
 	}
 	if w < 12 || rows < 6 {
 		lines := []string{fit("Quosparr", w), fit(l.TUI("resize"), w), fit("n/p r c q/Esc", w)}
@@ -98,13 +96,16 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 		}
 	}
 	cardWidth := (w - (cols-1)*2) / cols
+	if len(view.History) > 0 {
+		historyOffset = max(historyScrollLimit(l, columns, now), min(0, historyOffset))
+	}
 	providers := view.Floating.Providers
 	var cards [][]string
 	for _, p := range providers {
 		card := renderCard(l, p, cardWidth, compact, color)
 		sections := [][]string{card}
 		if history, ok := view.History[p.Provider]; ok {
-			body := renderHistory(l, history, cardWidth-4, monthOffset, now, color)
+			body := renderHistory(l, history, cardWidth-4, historyOffset, mode, now, color)
 			historyCard := append([]string{card[0], card[1]}, body...)
 			historyCard = append(historyCard, card[len(card)-1])
 			for i := 2; i < len(historyCard)-1; i++ {
@@ -156,7 +157,7 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 		for len(lines) < rows-1 {
 			lines = append(lines, "")
 		}
-		help := "[/] 0 n/p r c q"
+		help := "1/2/3 [/] 0 n/p r c q"
 		pageLabel := fmt.Sprintf("%d/%d", page+1, len(pages))
 		if cells(help)+len(pageLabel)+1 > w {
 			help = "[]np q"
@@ -188,141 +189,133 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 	if cells(footer)+cells(pageText)+1 > w {
 		footer = "r c q/Esc"
 		if len(view.History) > 0 {
-			footer = "[/] 0 " + footer
+			footer = "1/2/3 [/] 0 " + footer
 		}
 	}
 	lines = append(lines, styled(paired(footer, pageText, w), accent, color))
 	return strings.Join(lines[:min(rows, len(lines))], "\r\n")
 }
 
-func renderHistory(l l10n.Localizer, history TokenHistory, width, monthOffset int, now time.Time, color bool) []string {
-	month := time.Date(now.UTC().Year(), now.UTC().Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, monthOffset, 0)
-	end := month.AddDate(0, 1, -1)
-	through := now.UTC().Truncate(24 * time.Hour)
-	if !history.Through.IsZero() && history.Through.Before(through) {
-		through = history.Through
+func historyScrollLimit(l l10n.Localizer, columns int, now time.Time) int {
+	w := max(0, columns-1)
+	cols := max(1, min(3, (w+2)/56))
+	width := max(1, (w-(cols-1)*2)/cols-4)
+	labelWidth := 0
+	for _, label := range strings.Split(l.TUI("historyWeekdays"), " ") {
+		labelWidth = max(labelWidth, cells(label))
 	}
-	if end.Before(through) {
-		through = end
+	prefixWidth := min(labelWidth+1, width-1)
+	grid := usage.BuildHeatmap(usage.HeatmapInput{Now: now, FirstWeekday: 1, Loc: time.UTC})
+	return -max(0, len(grid.Weeks)-(width-prefixWidth))
+}
+
+func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset int, mode usage.HeatmapMode, now time.Time, color bool) []string {
+	if mode != usage.HeatmapWeekly && mode != usage.HeatmapCumulative {
+		mode = usage.HeatmapDaily
 	}
-	start := month.AddDate(0, 0, -int(month.Weekday()))
-	weeks := int(end.Sub(start)/(7*24*time.Hour)) + 1
+	grid := usage.BuildHeatmap(usage.HeatmapInput{Local: history.Days, Mode: mode, Now: now, FirstWeekday: 1, Loc: time.UTC})
 	weekdays := strings.Split(l.TUI("historyWeekdays"), " ")
 	labelWidth := 0
 	for _, label := range weekdays {
 		labelWidth = max(labelWidth, cells(label))
 	}
-	labelWidth = max(0, min(labelWidth, width-weeks))
-	prefixWidth := 0
-	if labelWidth > 0 {
-		prefixWidth = min(labelWidth+1, width-weeks)
-	}
-	cellWidth := max(1, min(4, (width-prefixWidth)/weeks))
-	from := month
-	if history.From.After(from) {
-		from = history.From
-	}
-	var total int64
-	var positive []int64
-	recorded := 0
-	for day := from; !day.After(through); day = day.AddDate(0, 0, 1) {
-		value, known := history.Days[day.Format("2006-01-02")]
-		if known {
-			recorded++
-		}
-		total += value
-		if value > 0 {
-			positive = append(positive, value)
+	prefixWidth := min(labelWidth+1, width-1)
+	weeks := min(len(grid.Weeks), max(1, width-prefixWidth))
+	start := max(0, min(len(grid.Weeks)-weeks, len(grid.Weeks)-weeks+historyOffset))
+	end := start + weeks
+	recorded := false
+	for _, week := range grid.Weeks {
+		for _, day := range week {
+			if _, known := history.Days[day.DayKey]; day.InRange && known {
+				recorded = true
+			}
 		}
 	}
-	slices.Sort(positive)
-	var quartiles [3]int64
-	if len(positive) > 0 {
-		for i := range quartiles {
-			quartiles[i] = positive[int(math.Round(float64(len(positive)-1)*float64(i+1)/4))]
-		}
-	}
-	value := usage.CompactTokenCount(total, l.Language()) + " " + l.Text(l10n.KeyTokens)
-	if !history.Available || recorded == 0 {
+	value := usage.CompactTokenCount(grid.TotalTokens, l.Language()) + " " + l.Text(l10n.KeyTokens)
+	if !history.Available || !recorded {
 		value = "—"
 	}
-	state := l.TUI("historyLocal")
+	title := l.Text(l10n.KeyTokenUsageHeatmap)
 	switch {
 	case history.Loading:
-		state = l.TUI("refreshing")
+		title = l.TUI("refreshing")
 	case history.Failed:
-		state = l.TUI("historyFailed")
+		title = l.TUI("historyFailed")
 	case history.Incomplete:
-		state = l.TUI("historyPartial")
-	case !history.Available || recorded == 0:
-		state = l.TUI("historyEmpty")
+		title = l.TUI("historyPartial")
+	case !history.Available || !recorded:
+		title = l.TUI("historyEmpty")
 	}
-	dateRange := month.Format("2006-01") + " UTC"
-	stateInLegend := cells(dateRange)+cells(state)+1 > width
-	if !stateInLegend {
-		dateRange = paired(dateRange, state, width)
+	keys := []l10n.Key{l10n.KeyHeatmapDaily, l10n.KeyHeatmapWeekly, l10n.KeyHeatmapCumulative}
+	modes := []usage.HeatmapMode{usage.HeatmapDaily, usage.HeatmapWeekly, usage.HeatmapCumulative}
+	var choices []string
+	selected := ""
+	for i, key := range keys {
+		label := fmt.Sprintf("%d %s", i+1, l.Text(key))
+		if modes[i] == mode {
+			label = "[" + label + "]"
+			selected = label
+		}
+		choices = append(choices, label)
+	}
+	year := now.UTC().Format("2006") + " UTC"
+	modeText := strings.Join(choices, " ")
+	if cells(modeText)+cells(year)+1 > width {
+		modeText = selected
+	}
+	if cells(modeText)+cells(year)+1 > width {
+		year = now.UTC().Format("2006")
 	}
 	lines := []string{
-		styled(pad(paired(l.Text(l10n.KeyTokenUsageHeatmap), value, width), width), "1;38;5;117", color),
-		styled(pad(dateRange, width), "38;5;245", color),
+		styled(pad(paired(title, value, width), width), "1;38;5;117", color),
+		styled(pad(paired(modeText, year, width), width), "38;5;114", color),
 	}
-	shades := []string{"38;5;238", "38;5;24", "38;5;31", "38;5;39", "38;5;81"}
+	shades := []string{"38;5;238", "38;5;18", "38;5;25", "38;5;26", "38;5;33"}
 	for weekday, label := range weekdays {
-		line := ""
-		if labelWidth > 0 {
-			line = styled(pad(label, labelWidth)+strings.Repeat(" ", prefixWidth-labelWidth), "38;5;245", color)
-		}
-		for week := 0; week < weeks; week++ {
-			day := start.AddDate(0, 0, week*7+weekday)
-			value, known := history.Days[day.Format("2006-01-02")]
+		line := styled(pad(label, prefixWidth), "38;5;245", color)
+		for _, week := range grid.Weeks[start:end] {
+			day := week[weekday]
+			_, known := history.Days[day.DayKey]
 			cell, shade := "·", "38;5;240"
-			if day.Before(from) || day.After(through) {
+			if !day.InRange {
 				cell = " "
-			} else if known {
-				level := 0
-				if value > 0 {
-					level = 1
-					for _, q := range quartiles {
-						if value > q {
-							level++
-						}
-					}
+			} else if known || mode != usage.HeatmapDaily && day.Tokens > 0 {
+				cell = string([]rune("□░▒▓█")[day.Level])
+				if color && day.Level > 0 {
+					cell = "▪"
 				}
-				cell = string([]rune("□░▒▓█")[level])
-				if color && level > 0 {
-					cell = "■"
-				}
-				shade = shades[level]
-			}
-			if day.Before(month) || day.After(end) {
-				line += strings.Repeat(" ", cellWidth)
-				continue
-			}
-			if cellWidth >= 3 {
-				line += styled(day.Format("02"), "38;5;245", color)
+				shade = shades[day.Level]
 			}
 			line += styled(cell, shade, color)
-			padding := cellWidth - 1
-			if cellWidth >= 3 {
-				padding -= 2
-			}
-			line += strings.Repeat(" ", padding)
 		}
-		lines = append(lines, line+strings.Repeat(" ", max(0, width-prefixWidth-weeks*cellWidth)))
+		lines = append(lines, line+strings.Repeat(" ", max(0, width-prefixWidth-weeks)))
 	}
-	legend := "· " + l.TUI("historyMissing") + "  □ 0  " + l.TUI("historyLowHigh") + " "
-	if stateInLegend {
-		legend = state + "  " + legend
-	}
-	if color && cells(legend)+4 <= width {
-		line := styled(legend, "38;5;245", color)
-		for _, shade := range shades[1:] {
-			line += styled("■", shade, color)
+	labels := []usage.HeatmapMonthLabel{}
+	for _, day := range grid.Weeks[start] {
+		if day.InRange {
+			labels = append(labels, usage.HeatmapMonthLabel{WeekIndex: start, Month: int(day.Date.Month())})
+			break
 		}
-		lines = append(lines, line+strings.Repeat(" ", width-cells(legend)-4))
-	} else {
-		lines = append(lines, styled(pad(legend+"░▒▓█", width), "38;5;245", color))
 	}
+	for _, label := range grid.MonthLabels {
+		if label.WeekIndex > start && label.WeekIndex < end {
+			labels = append(labels, label)
+		}
+	}
+	axis := strings.Repeat(" ", prefixWidth)
+	for i, label := range labels {
+		at := prefixWidth + label.WeekIndex - start
+		limit := width - at
+		if i+1 < len(labels) {
+			limit = min(limit, labels[i+1].WeekIndex-label.WeekIndex)
+		}
+		month := runway.MonthTitle(label.Month, l.Language())
+		if width < 20 {
+			month = fmt.Sprint(label.Month)
+		}
+		axis += strings.Repeat(" ", max(0, at-cells(axis))) + fit(month, limit)
+	}
+	lines = append(lines, styled(pad(axis, width), "38;5;245", color))
 	return lines
 }
 
