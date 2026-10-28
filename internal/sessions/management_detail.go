@@ -38,6 +38,7 @@ func ReadManagedDetail(ctx context.Context, session ManagedSession) (ManagedDeta
 		}
 		if remaining <= 0 {
 			detail.Truncated = true
+			detail.ModelCallsPartial = true
 			break
 		}
 		if session.Provider == ProviderGrok && filepath.Base(file.Path) == "summary.json" {
@@ -53,6 +54,7 @@ func ReadManagedDetail(ctx context.Context, session ManagedSession) (ManagedDeta
 			return ManagedDetail{}, err
 		}
 	}
+	state.calls.merge(&detail)
 	sort.SliceStable(detail.Messages, func(i, j int) bool {
 		if detail.Messages[i].At.IsZero() || detail.Messages[j].At.IsZero() {
 			return false
@@ -91,7 +93,11 @@ func readManagedFile(ctx context.Context, provider, path string, limit int64, de
 	if !pathInfo.Mode().IsRegular() || !os.SameFile(pathInfo, info) {
 		return 0, false, fmt.Errorf("session file identity changed: %s", filepath.Base(path))
 	}
+	calls := &state.calls
 	readLimit := min(limit, info.Size())
+	if info.Size() > readLimit {
+		calls.partial = true
+	}
 	r := bufio.NewReader(io.LimitReader(f, readLimit))
 	var used int64
 	grokTurn := 0
@@ -106,6 +112,7 @@ func readManagedFile(ctx context.Context, provider, path string, limit int64, de
 		used += int64(n)
 		if tooLong {
 			truncated = true
+			calls.partial = true
 		} else if len(strings.TrimSpace(string(line))) > 0 {
 			var obj map[string]any
 			dec := json.NewDecoder(strings.NewReader(string(line)))
@@ -116,6 +123,7 @@ func readManagedFile(ctx context.Context, provider, path string, limit int64, de
 				}
 				return used, truncated, fmt.Errorf("malformed session record in %s at line %d", path, lineNo)
 			}
+			calls.add(provider, obj)
 			message := managedMessage(provider, obj)
 			if message.boundary {
 				grokTurn++
@@ -164,6 +172,7 @@ type parsedManagedMessage struct {
 }
 
 type managedMessageState struct {
+	calls   modelCallCounter
 	seen    map[string]int
 	chunks  map[string]int
 	sources []string

@@ -83,6 +83,17 @@ func (u *settingsUI) sessionMetadata(c *ui.Context, item sessions.ManagedSession
 		{tx(l, xSessionsFiles), fmt.Sprint(len(item.Files)), nil},
 		{tx(l, xSessionsPath), item.Path, nil},
 	}
+	detail := u.sessionsState().detail
+	if detail.loaded && !detail.task.Running && detail.task.Err == nil {
+		calls := tx(l, xSessionsCallsUnknown)
+		if detail.detail.ModelCalls != nil {
+			calls = fmt.Sprint(*detail.detail.ModelCalls)
+			if detail.detail.ModelCallsPartial {
+				calls = tx(l, xSessionsCallsPartial, *detail.detail.ModelCalls)
+			}
+		}
+		fields = append(fields, metaField{tx(l, xSessionsModelCalls), calls, nil})
+	}
 	if item.Problem != "" {
 		fields = append(fields, metaField{tx(l, xSessionsProblem), item.Problem, nil})
 	}

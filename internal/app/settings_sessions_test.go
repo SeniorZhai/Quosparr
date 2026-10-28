@@ -295,3 +295,18 @@ func TestExportSettingsSessionsReview(t *testing.T) {
 	}
 	exportReviewPNG(t, tt, filepath.Join(dir, "sessions-detail-zh-Hans.png"))
 }
+
+func TestSessionDetailShowsRecordedModelCalls(t *testing.T) {
+	count := 17
+	actions := SessionActions{Detail: func(_ context.Context, item sessions.ManagedSession) (sessions.ManagedDetail, error) {
+		return sessions.ManagedDetail{Session: item, ModelCalls: &count, ModelCallsPartial: true}, nil
+	}}
+	u, tt, queue := settingsSessionsView(t, actions)
+	u.sessions.open = sessionKey(u.sessions.items[0])
+	tt.Frame()
+	finishDetail(t, queue)
+	tt.Frame()
+	if !tt.HasText(tx(u.L(), xSessionsModelCalls)) || !tt.HasText(tx(u.L(), xSessionsCallsPartial, count)) {
+		t.Fatalf("model calls missing from details: %q", tt.Texts())
+	}
+}

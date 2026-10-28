@@ -49,9 +49,11 @@ type ManagedMessage struct {
 }
 
 type ManagedDetail struct {
-	Session   ManagedSession
-	Messages  []ManagedMessage
-	Truncated bool
+	ModelCalls        *int
+	ModelCallsPartial bool
+	Session           ManagedSession
+	Messages          []ManagedMessage
+	Truncated         bool
 }
 
 // SnapshotManagedFile validates and snapshots one regular file without

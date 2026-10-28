@@ -137,3 +137,15 @@ func init() {
 		extraTexts[key] = texts
 	}
 }
+
+const (
+	xSessionsModelCalls   textKey = "sessionsModelCalls"
+	xSessionsCallsUnknown textKey = "sessionsCallsUnknown"
+	xSessionsCallsPartial textKey = "sessionsCallsPartial"
+)
+
+func init() {
+	extraTexts[xSessionsModelCalls] = [7]string{"Model calls (recorded)", "模型调用次数（已记录）", "模型呼叫次數（已記錄）", "모델 호출 수 (기록됨)", "モデル呼び出し数（記録済み）", "Вызовы модели (записанные)", "Appels du modèle (enregistrés)"}
+	extraTexts[xSessionsCallsUnknown] = [7]string{"Unavailable in the logs", "日志未提供，无法统计", "日誌未提供，無法統計", "로그에 정보가 없습니다", "ログに記録がありません", "Нет данных в журналах", "Indisponible dans les journaux"}
+	extraTexts[xSessionsCallsPartial] = [7]string{"At least %d (incomplete logs)", "至少 %d 次（日志不完整）", "至少 %d 次（日誌不完整）", "최소 %d회 (불완전한 로그)", "少なくとも %d 回（不完全なログ）", "Не менее %d (неполные журналы)", "Au moins %d (journaux incomplets)"}
+}
