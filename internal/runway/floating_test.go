@@ -8,6 +8,28 @@ import (
 	"github.com/licoy/quosparr/internal/store"
 )
 
+func TestFloatingSnapshotExistsWithDesktopWindowDisabled(t *testing.T) {
+	prefs := store.DefaultPreferences()
+	prefs.FloatingWindow.Enabled = false
+	s := New(Options{Preferences: prefs})
+	defer s.Close()
+	s.publish()
+	if got := s.Snapshot().Floating; len(got.Providers) != 1 || got.Providers[0].Provider != store.ProviderCodex {
+		t.Fatalf("terminal mirror has no floating view: %+v", got)
+	}
+}
+
+func TestFloatingCountdownParticipatesInTickUpdates(t *testing.T) {
+	s := Snapshot{Floating: FloatingView{Providers: []FloatingProvider{{Provider: store.ProviderClaude,
+		Meters: []FloatingMeter{{Reset: "2h"}},
+	}}}}
+	before := tickKey(s)
+	s.Floating.Providers[0].Meters[0].Reset = "1h 59m"
+	if tickKey(s) == before {
+		t.Fatal("floating-only reset countdown did not trigger publication")
+	}
+}
+
 func TestFloatingShowsTwoStandardWindowsPerProvider(t *testing.T) {
 	weekly := testMeter("每周", 60, WeeklyMinutes, SourceStandard)
 	five := testMeter("5小时", 20, FiveHourMinutes, SourceStandard)

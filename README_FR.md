@@ -133,6 +133,14 @@ Linux nécessite GTK3, AppIndicator, un bureau prenant en charge la zone de noti
 
 - Les comptes et le quota Grok ne prennent en charge que OAuth / SuperGrok et les sessions legacy compatibles. Exécutez `grok login --oauth`, connectez-vous depuis l’app, importez la connexion actuelle ou collez un JSON d’identifiants. Les connexions par clé API seule ne sont pas ajoutées comme comptes gérés. `GROK_HOME` est utilisé s’il est défini, sinon `~/.grok`.
 
+## Mode terminal
+
+Lancez `quosparr --tui` pour afficher les fournisseurs choisis pour la fenêtre flottante dans le terminal : barres de quota, soldes, comptes à rebours et vitesse tok/s en direct. Sur macOS, utilisez `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui` ; sur Windows, lancez `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'` depuis le dossier d’installation.
+
+L’affichage se met à jour chaque seconde et s’adapte à la taille du terminal. Appuyez sur `r` pour actualiser, ou sur `q`, `Esc` ou `Ctrl+C` pour quitter. La fenêtre flottante du bureau peut être désactivée. Sans autre instance de Quosparr, le TUI actualise les données de façon autonome avec le proxy enregistré et les règles existantes des comptes. Si une autre instance fonctionne, il affiche ses données et `r` relit le snapshot, sans lancer un second mécanisme d’actualisation des comptes. Redémarrez une ancienne version bureau après sa mise à jour pour activer ce partage.
+
+Le fichier privé `~/.quosparr/tui-snapshot.json` ne contient que les valeurs affichées et un horodatage, sans identifiants secrets ni texte des conversations. Un snapshot absent ou périmé est signalé comme indisponible. Si l’instance qui publie les données se ferme, relancez le TUI pour reprendre les actualisations autonomes.
+
 ## Widgets bureau
 
 Les widgets nécessitent macOS 14 ou plus ; Windows et Linux n’en disposent pas. Quatre types de widgets sont proposés : aperçu des quotas, tendance des jetons, un indicateur clé et Actualités des réinitialisations Codex. Chaque widget peut choisir Codex, Claude, Grok ou une paire : Codex + Claude, Codex + Grok, Grok + Claude. Un widget déjà réglé sur Codex + Grok conserve cette paire. Un clic ouvre la page correspondante.
@@ -187,6 +195,7 @@ Lancez avec un HOME temporaire et un domaine de préférences distinct afin de n
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
 ```
 
 L’auto-diagnostic n’effectue aucune requête réseau et ne lit aucun identifiant. Il couvre actuellement la version, la plateforme, les droits des répertoires propres, les verrous et la présence de l’auth Codex et de l’index de session ; les autres diagnostics sont indiqués comme `not ported yet`.

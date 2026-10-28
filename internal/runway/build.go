@@ -45,9 +45,7 @@ func (s *Service) buildLocked(now time.Time) Snapshot {
 		Live: s.live,
 	}
 	snap.StatusBar = BuildStatusBar(lc, in)
-	if s.prefs.FloatingWindow.Enabled {
-		snap.Floating = BuildFloating(lc, in)
-	}
+	snap.Floating = BuildFloating(lc, in)
 	return snap
 }
 

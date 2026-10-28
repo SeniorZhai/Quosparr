@@ -10,15 +10,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/licoy/quosparr/internal/app"
+	"github.com/licoy/quosparr/internal/l10n"
 	"github.com/licoy/quosparr/internal/migration"
 	"github.com/licoy/quosparr/internal/platform"
 	"github.com/licoy/quosparr/internal/sqliteruntime"
+	"github.com/licoy/quosparr/internal/tui"
 )
 
 // mygoJSON is the packaging config, which holds the product version.
@@ -59,8 +63,32 @@ func main() {
 		home, _ := platform.Home()
 		app.SelfCheck(os.Stdout, home, appVersion())
 		return
+	case app.CommandTUI:
+		os.Exit(runTUI())
 	}
 	os.Exit(run(command))
+}
+
+func runTUI() (code int) {
+	l := l10n.ForPreference("system", l10n.SystemPreferredLanguages())
+	restore, err := tui.PrepareConsole()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, l.TUI("terminalRequired"))
+		return 1
+	}
+	defer func() {
+		if err := restore(); err != nil {
+			fmt.Fprintln(os.Stderr, l.TUI("terminalError"))
+			code = 1
+		}
+	}()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := app.RunTUI(ctx, os.Stdin, os.Stdout, appVersion()); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	return 0
 }
 
 // run starts the app. Startup order (plan 3.5): single-instance lock ->

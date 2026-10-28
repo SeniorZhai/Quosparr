@@ -133,6 +133,14 @@ Linux needs GTK3, AppIndicator, a desktop with tray support, and a working Secre
 
 - Grok accounts and quota support OAuth / SuperGrok and compatible legacy sessions only. Run `grok login --oauth`, sign in from the app, import the current login, or paste credential JSON. API-key-only logins are not added as managed accounts. `GROK_HOME` is used when set, otherwise `~/.grok`.
 
+## Terminal mode
+
+Run `quosparr --tui` to show the floating window's provider selection in a terminal: quota bars, balances, reset countdowns and live tok/s. On macOS use `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`; on Windows run `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'` from the installation directory.
+
+The display updates every second and adapts to terminal size. Press `r` to refresh, or `q`, `Esc` or `Ctrl+C` to exit. It works with the desktop floating window turned off. Without another Quosparr instance, it refreshes independently using the saved proxy and existing account rules. When another instance is running, it mirrors that instance's data and `r` rereads the snapshot, without starting a second account refresher. Restart an older desktop build after updating to enable mirroring.
+
+The private `~/.quosparr/tui-snapshot.json` contains only display values and a timestamp, not credentials or conversation text. Missing or stale snapshots are shown as unavailable. If the publishing instance exits, restart the TUI to resume independent refreshes.
+
 ## Desktop Widgets
 
 Widgets require macOS 14 or later; Windows and Linux do not have them. Four widget types are available: quota overview, token trend, a key metric, and Codex Reset Updates. Each widget can select Codex, Claude, Grok, or a pair: Codex + Claude, Codex + Grok, or Grok + Claude. A widget already set to Codex + Grok keeps that pair. Tapping it opens the matching page.
@@ -187,6 +195,7 @@ Run against a temporary HOME and a separate preferences domain so your real acco
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
 ```
 
 The self-check makes no network request and reads no credentials. It currently covers the version, platform, own-directory permissions, locks, and whether Codex auth and the session index exist; other diagnostics are listed as `not ported yet`.

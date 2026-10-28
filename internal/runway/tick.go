@@ -65,6 +65,14 @@ func tickKey(s Snapshot) string {
 	}
 	b.WriteByte(0)
 	b.WriteString(s.ResetToday.Text)
+	for _, provider := range s.Floating.Providers {
+		b.WriteByte(0)
+		b.WriteString(string(provider.Provider) + "|" + provider.LiveText + "|" + provider.Status)
+		for _, meter := range provider.Meters {
+			b.WriteByte(0)
+			b.WriteString(meter.Reset)
+		}
+	}
 	return b.String()
 }
 

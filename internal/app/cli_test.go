@@ -21,6 +21,10 @@ func TestParseArgs(t *testing.T) {
 		{[]string{"-h"}, CommandHelp},
 		{[]string{"--self-check"}, CommandSelfCheck},
 		{[]string{"--self-check", "--help"}, CommandHelp},
+		{[]string{"--tui"}, CommandTUI},
+		{[]string{"--tui", "--settings"}, CommandTUI},
+		{[]string{"--tui", "--self-check"}, CommandSelfCheck},
+		{[]string{"--tui", "--help"}, CommandHelp},
 		{[]string{"--settings"}, CommandSettings},
 		{[]string{"--settings", "--unknown"}, CommandSettings},
 		{[]string{"--settings", "--self-check"}, CommandSelfCheck},
@@ -89,6 +93,9 @@ func TestLaunchActionsSecondInstance(t *testing.T) {
 func TestHelpTextIncludesSettings(t *testing.T) {
 	if !strings.Contains(HelpText, "--settings") {
 		t.Fatal("help must advertise --settings")
+	}
+	if !strings.Contains(HelpText, "--tui") {
+		t.Fatal("help must advertise --tui")
 	}
 }
 

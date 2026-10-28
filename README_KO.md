@@ -133,6 +133,14 @@ Linux에는 GTK3, AppIndicator, 트레이를 지원하는 데스크톱, 프록�
 
 - Grok 계정과 할당량은 OAuth / SuperGrok 및 호환 레거시 세션만 지원합니다. `grok login --oauth`를 실행하거나, 앱에서 로그인하거나, 현재 로그인을 가져오거나, 자격 증명 JSON을 붙여넣으세요. API 키만 있는 로그인은 관리 계정으로 추가되지 않습니다. `GROK_HOME`이 설정되어 있으면 그 값을 쓰고, 아니면 `~/.grok`를 씁니다.
 
+## 터미널 모드
+
+`quosparr --tui`를 실행하면 플로팅 창에서 선택한 공급자의 사용량 막대, 잔액, 초기화 카운트다운과 실시간 tok/s를 터미널에 표시합니다. macOS에서는 `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`를, Windows에서는 설치 폴더에서 `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'`를 실행하세요.
+
+화면은 매초 갱신되며 터미널 크기에 맞춰집니다. `r`로 새로 고치고 `q`, `Esc`, `Ctrl+C`로 종료합니다. 데스크톱 플로팅 창이 꺼져 있어도 사용할 수 있습니다. 다른 Quosparr 인스턴스가 없으면 저장된 프록시와 기존 계정 규칙으로 독립적으로 갱신합니다. 다른 인스턴스가 실행 중이면 해당 데이터를 표시하고 `r`은 스냅샷만 다시 읽어 중복 계정 갱신을 피합니다. 이전 데스크톱 빌드는 업데이트 후 재시작해야 미러링할 수 있습니다.
+
+비공개 파일 `~/.quosparr/tui-snapshot.json`에는 표시 값과 타임스탬프만 저장되며 자격 증명이나 대화 원문은 포함하지 않습니다. 스냅샷이 없거나 오래되면 사용할 수 없다고 표시합니다. 데이터를 제공하는 인스턴스가 종료되면 TUI를 다시 실행하여 독립 갱신을 시작하세요.
+
 ## 데스크톱 위젯
 
 위젯은 macOS 14 이상이 필요하며 Windows와 Linux에는 없습니다. 할당량 개요, 토큰 추세, 핵심 지표, Codex 초기화 업데이트의 네 가지 위젯을 제공합니다. 각 위젯은 위젯 편집에서 Codex, Claude, Grok 또는 한 쌍(Codex + Claude, Codex + Grok, Grok + Claude)을 고를 수 있습니다. 이미 Codex + Grok으로 둔 위젯은 그 쌍을 유지합니다. 탭하면 해당 페이지가 열립니다.
@@ -187,6 +195,7 @@ go build ./...
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
 ```
 
 자가 진단은 네트워크 요청을 하지 않고 자격 증명도 읽지 않습니다. 현재는 버전, 플랫폼, 자체 디렉터리 권한, 잠금, Codex auth와 세션 인덱스 존재 여부만 확인하며, 나머지 진단은 `not ported yet`로 표시됩니다.

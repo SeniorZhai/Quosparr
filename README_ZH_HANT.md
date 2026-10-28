@@ -133,6 +133,14 @@ Linux 需要 GTK3、AppIndicator、支援系統匣的桌面環境，以及可用
 
 - Grok 帳號與額度僅支援 OAuth / SuperGrok 及相容的 legacy session。可執行 `grok login --oauth`、在應用程式內登入、匯入目前登入，或貼上憑證 JSON。僅使用 API Key 的登入不會加入託管帳號。若已設定 `GROK_HOME` 則使用該目錄，否則使用 `~/.grok`。
 
+## 終端模式
+
+執行 `quosparr --tui`，在終端顯示浮動視窗所選供應商的額度條、餘額、重設倒數與即時 tok/s。macOS 使用 `/Applications/Quosparr.app/Contents/MacOS/Quosparr --tui`；Windows 在安裝目錄執行 `Start-Process -Wait -NoNewWindow -FilePath .\Quosparr.exe -ArgumentList '--tui'`。
+
+介面每秒更新並配合終端尺寸，按 `r` 重新整理，按 `q`、`Esc` 或 `Ctrl+C` 結束。桌面浮動視窗關閉時也可使用。沒有其他 Quosparr 執行個體時，TUI 依已儲存的代理與現有帳號規則獨立更新；其他執行個體運作時只鏡像其資料，`r` 重新讀取快照，不啟動第二組帳號更新。舊桌面版升級後需重新啟動才能提供鏡像。
+
+私人檔案 `~/.quosparr/tui-snapshot.json` 只包含顯示值與時間戳記，不包含憑證或對話原文；快照缺失或過期時明確顯示無法使用。發布資料的執行個體結束後，重新開啟 TUI 即可獨立更新。
+
 ## 桌面小工具
 
 桌面小工具需要 macOS 14 或更新版本，Windows 與 Linux 不提供。共有四種小工具：額度總覽、token 趨勢、關鍵指標和 Codex 重設動態。每個小工具都可在「編輯小工具」中選擇 Codex、Claude、Grok，或一對組合：Codex + Claude、Codex + Grok、Grok + Claude。已經設成 Codex + Grok 的小工具保持這一對。點一下即可前往對應頁面。
@@ -187,6 +195,7 @@ go build ./...
 QUOSPARR_TEST_HOME="$(mktemp -d)"
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run .
 HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --self-check
+HOME="$QUOSPARR_TEST_HOME" QUOSPARR_PREFS_DOMAIN=com.quosparr.app.v1-test go run . --tui
 ```
 
 自我檢查不會發出網路請求，也不讀取憑證。目前涵蓋版本、平台、自有目錄權限、鎖定狀態，以及 Codex auth 與工作階段索引是否存在；其餘診斷會標示為 `not ported yet`。

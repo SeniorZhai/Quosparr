@@ -10,6 +10,7 @@ const (
 	CommandRun Command = iota
 	CommandHelp
 	CommandSelfCheck
+	CommandTUI
 	CommandSettings
 )
 
@@ -27,10 +28,13 @@ Options:
   --settings
       Open the settings window after launching.
 
+  --tui
+      Show floating-window quotas in the terminal (q: quit, r: refresh).
+
 `
 
 // ParseArgs picks the command from args (without the program name).
-// --help wins over --self-check, which wins over --settings. Anything else
+// --help wins over --self-check, then --tui, then --settings. Anything else
 // is ignored, so flags a launcher adds never keep the app from starting.
 func ParseArgs(args []string) Command {
 	switch {
@@ -38,6 +42,8 @@ func ParseArgs(args []string) Command {
 		return CommandHelp
 	case slices.Contains(args, "--self-check"):
 		return CommandSelfCheck
+	case slices.Contains(args, "--tui"):
+		return CommandTUI
 	case slices.Contains(args, "--settings"):
 		return CommandSettings
 	}
