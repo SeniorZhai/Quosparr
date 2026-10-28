@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/licoy/quosparr/internal/speed"
@@ -53,6 +54,29 @@ func readGrok(now time.Time, home string, since time.Time, responses *[]Response
 		seen[dir] = true
 		parseGrok(now, dir, tailOf(filepath.Join(dir, "updates.jsonl")), tailOf(filepath.Join(dir, "events.jsonl")), responses, flights)
 	})
+}
+
+func readGrokHistory(now time.Time, home string) Response {
+	if home == "" {
+		return Response{}
+	}
+	type candidate struct {
+		path string
+		at   time.Time
+	}
+	var candidates []candidate
+	eachRecent(filepath.Join(home, "sessions"), 4, now.Add(-grokHistoryWindow), func(path string, info fs.FileInfo) {
+		if info.Name() == "updates.jsonl" {
+			candidates = append(candidates, candidate{path: path, at: info.ModTime()})
+		}
+	})
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].at.After(candidates[j].at) })
+	var responses []Response
+	var flights []Flight
+	for _, c := range candidates[:min(len(candidates), speed.SessionLimit)] {
+		parseGrok(now, filepath.Dir(c.path), tailOf(c.path), nil, &responses, &flights)
+	}
+	return latestGrok(now, responses)
 }
 
 func readCodex(now time.Time, home string, since time.Time, responses *[]Response, flights *[]Flight) {
@@ -148,6 +172,7 @@ func parseGrok(now time.Time, dir string, updates, events []byte, responses *[]R
 	model := ""
 	var turnStart, waitAt, last time.Time
 	open := false
+	producing := false
 	for _, line := range bytes.Split(events, []byte("\n")) {
 		var ev struct {
 			TS    string `json:"ts"`
@@ -162,10 +187,10 @@ func parseGrok(now time.Time, dir string, updates, events []byte, responses *[]R
 		if err != nil {
 			continue
 		}
-		last = at
 		switch {
 		case ev.Type == "turn_started":
 			open = true
+			producing = false
 			turnStart, waitAt = at, time.Time{}
 			if ev.Model != "" {
 				model = ev.Model
@@ -176,12 +201,15 @@ func parseGrok(now time.Time, dir string, updates, events []byte, responses *[]R
 			if !open {
 				turnStart, open = at, true
 			}
+			producing, last = true, at
 			if ev.Phase == "waiting_for_model" {
 				waitAt = at
 			}
 		case ev.Type == "turn_ended":
-			open = false
+			open, producing = false, false
 			turnStart, waitAt = time.Time{}, time.Time{}
+		case ev.Type == "phase_changed":
+			producing = false
 		}
 	}
 	for _, line := range bytes.Split(updates, []byte("\n")) {
@@ -197,15 +225,15 @@ func parseGrok(now time.Time, dir string, updates, events []byte, responses *[]R
 			continue
 		}
 		usage := row.Params.Update.Usage
-		if len(usage.ModelUsage) > 0 {
-			for name, bucket := range usage.ModelUsage {
-				addGrokResponse(responses, dir, name, bucket.OutputTokens, usage.APIDurationMs, end)
+		output := usage.OutputTokens
+		if output == 0 {
+			for _, bucket := range usage.ModelUsage {
+				output += float64(clampTokens(bucket.OutputTokens))
 			}
-			continue
 		}
-		addGrokResponse(responses, dir, model, usage.OutputTokens, usage.APIDurationMs, end)
+		addGrokResponse(responses, dir, model, output, usage.APIDurationMs, end)
 	}
-	if !open || last.IsZero() || now.Sub(last) > flightFresh {
+	if !open || !producing || last.IsZero() || now.Sub(last) > flightFresh {
 		return
 	}
 	start := turnStart
@@ -245,7 +273,7 @@ func grokEnd(row grokUpdate) time.Time {
 }
 
 func addGrokResponse(responses *[]Response, dir, model string, output, duration float64, end time.Time) {
-	if duration <= 0 || duration > maxDuration.Seconds()*1000 {
+	if duration <= 0 || duration > grokHistoryWindow.Seconds()*1000 {
 		return
 	}
 	*responses = append(*responses, Response{

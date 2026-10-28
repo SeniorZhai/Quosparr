@@ -135,7 +135,7 @@ Linux needs GTK3, AppIndicator, a desktop with tray support, and a working Secre
 
 ## Terminal mode
 
-In the app, open **Advanced → Terminal dashboard → Install TUI**. After installation, `quosparr` opens the independent terminal dashboard by default; `quosparr --tui` also works. It runs without the desktop app. Provider cards show quota bars colored by health, balances, reset countdowns and live tok/s, together with refresh status and automatic refresh timing.
+In the app, open **Advanced → Terminal dashboard → Install TUI**. After installation, `quosparr` opens the independent terminal dashboard by default; `quosparr --tui` also works. It runs without the desktop app. Provider cards show quota bars colored by health, balances, reset countdowns and live tok/s, together with refresh status and automatic refresh timing. Grok saves usage only after a full turn ends, so it shows the last completed turn’s average output rate (output Tokens divided by API time), labeled “Last”; without a completed sample, it waits for usage.
 
 The setup wizard opens when no TUI configuration exists. Run `quosparr --setup` or press `c` in the TUI to configure it again. Choose existing official CLI logins, enter an API key and service URL manually, or explicitly import the desktop app's current credentials. Provider selection, language and refresh interval belong to the TUI configuration.
 

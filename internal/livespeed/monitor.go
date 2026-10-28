@@ -12,6 +12,9 @@ type Monitor struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	grokLast      Response
+	grokHistoryAt time.Time
+
 	mu    sync.Mutex
 	parts []Part
 }
@@ -65,6 +68,13 @@ func (m *Monitor) sample(now time.Time) {
 		return
 	}
 	responses, flights := Read(now, m.homes)
+	// Keep completed usage when subsequent output pushes it out of the log tail.
+	if m.grokHistoryAt.IsZero() || now.Sub(m.grokHistoryAt) >= time.Minute {
+		responses = append(responses, readGrokHistory(now, m.homes.Grok))
+		m.grokHistoryAt = now
+	}
+	responses = append(responses, m.grokLast)
+	m.grokLast = latestGrok(now, responses)
 	parts := Parts(now, responses, flights)
 	m.mu.Lock()
 	m.parts = parts

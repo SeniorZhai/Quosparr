@@ -173,7 +173,7 @@ func (r *Runtime) View() View {
 		}
 		for _, part := range live {
 			if part.Source == string(p) {
-				in.Live = append(in.Live, runway.LivePart{Provider: p, Text: part.Text, Pending: part.Pending})
+				in.Live = append(in.Live, runway.LivePart{Provider: p, Text: part.Text, Pending: part.Pending, Last: part.Last})
 			}
 		}
 		floating := runway.BuildFloating(r.lc, in)

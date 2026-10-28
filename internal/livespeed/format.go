@@ -24,32 +24,58 @@ func Format(rate float64) (string, bool) {
 	return text + " tok/s", true
 }
 
-// Part is one source that has a live rate.
+// Part is one source with a rate or a wait for completed usage.
 type Part struct {
 	Source  string
 	Text    string
 	Pending bool
+	Last    bool
 }
 
 // Parts is the live rate of each source that is producing tokens, in a
-// stable order. Grok's first turn stays pending until usage is available.
+// stable order. Grok only reports completed turns, so its rate is labeled Last.
 func Parts(now time.Time, responses []Response, flights []Flight) []Part {
 	var out []Part
 	for _, source := range []string{"codex", "claude", "grok"} {
 		active := flightsBySource(flights, source)
-		text, on := Format(OutputRate(now, bySource(responses, source), active))
-		if on {
-			out = append(out, Part{Source: source, Text: text})
-		} else if source == "grok" {
+		if source == "grok" {
+			pending := false
 			for _, f := range active {
 				if !f.Start.IsZero() && f.Start.Before(now) && !f.Last.IsZero() && !f.Last.After(now) && now.Sub(f.Last) <= flightFresh {
-					out = append(out, Part{Source: source, Pending: true})
+					pending = true
 					break
 				}
 			}
+			r := latestGrok(now, responses)
+			if !r.End.IsZero() && (pending || now.Sub(r.End) <= 30*time.Second) {
+				if text, ok := Format(float64(r.Output) / r.End.Sub(r.Start).Seconds()); ok {
+					out = append(out, Part{Source: source, Text: text, Last: true})
+					continue
+				}
+			}
+			if pending {
+				out = append(out, Part{Source: source, Pending: true})
+			}
+			continue
+		}
+		if text, on := Format(OutputRate(now, bySource(responses, source), active)); on {
+			out = append(out, Part{Source: source, Text: text})
 		}
 	}
 	return out
+}
+
+const grokHistoryWindow = 24 * time.Hour
+
+func latestGrok(now time.Time, responses []Response) Response {
+	var latest Response
+	for _, r := range responses {
+		if r.Source == "grok" && r.Final && r.Output > 0 && !r.Start.IsZero() && r.End.After(r.Start) &&
+			r.End.Sub(r.Start) <= grokHistoryWindow && !r.End.After(now) && now.Sub(r.End) <= grokHistoryWindow && r.End.After(latest.End) {
+			latest = r
+		}
+	}
+	return latest
 }
 
 func bySource(in []Response, source string) []Response {

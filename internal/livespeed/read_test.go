@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func TestReadGrokOpenTurnUsesRecentMeasuredSpeed(t *testing.T) {
+func TestReadGrokOpenTurnLabelsTheLastMeasuredSpeed(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	home := t.TempDir()
 	dir := filepath.Join(home, "sessions", "cwd", "sess")
@@ -31,8 +31,22 @@ func TestReadGrokOpenTurnUsesRecentMeasuredSpeed(t *testing.T) {
 	if len(responses) != 1 || len(flights) != 1 {
 		t.Fatalf("responses %d flights %d", len(responses), len(flights))
 	}
-	if got := OutputRate(now, responses, flights); mathAbs(got-50) > 1 {
-		t.Fatalf("rate = %v", got)
+	if got := Parts(now, responses, flights); len(got) != 1 || got[0].Text != "50 tok/s" || !got[0].Last {
+		t.Fatalf("rate = %+v", got)
+	}
+}
+
+func TestGrokCompletedLongMultiModelTurnUsesWholeAPIDuration(t *testing.T) {
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	for _, output := range []string{`"outputTokens":60000,`, ""} {
+		updates := `{"timestamp":` + itoa(now.Unix()) + `,"params":{"update":{"sessionUpdate":"turn_completed","usage":{` + output + `"apiDurationMs":1200000,"modelUsage":{"a":{"outputTokens":20000},"b":{"outputTokens":40000}}}}}}` + "\n"
+		var responses []Response
+		var flights []Flight
+		parseGrok(now, "session", []byte(updates), nil, &responses, &flights)
+		parts := Parts(now, responses, flights)
+		if len(responses) != 1 || len(parts) != 1 || parts[0].Text != "50 tok/s" || !parts[0].Last {
+			t.Fatalf("whole turn rate: responses=%+v, parts=%+v", responses, parts)
+		}
 	}
 }
 
@@ -93,6 +107,8 @@ func TestReadGrokPendingWithoutCompletedUsage(t *testing.T) {
 		{"truncated reasoning", strings.ReplaceAll(activity, "streaming_text", "streaming_reasoning"), true},
 		{"truncated first token", `{"ts":"` + stamp + `","type":"first_token"}` + "\n", true},
 		{"ended then cleanup", activity + ended + cleanup, false},
+		{"running tools", start + activity + `{"ts":"` + stamp + `","type":"phase_changed","phase":"tool_execution"}` + "\n", false},
+		{"permission prompt", start + activity + `{"ts":"` + stamp + `","type":"phase_changed","phase":"permission_prompt"}` + "\n", false},
 		{"cleanup only", cleanup, false},
 		{"stale activity", strings.ReplaceAll(activity, stamp, now.Add(-flightFresh-time.Second).Format(time.RFC3339Nano)), false},
 	} {

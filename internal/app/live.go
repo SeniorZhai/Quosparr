@@ -280,7 +280,7 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 				if provider != store.ProviderCodex && provider != store.ProviderClaude && provider != store.ProviderGrok {
 					continue
 				}
-				out = append(out, runway.LivePart{Provider: provider, Text: part.Text, Pending: part.Pending})
+				out = append(out, runway.LivePart{Provider: provider, Text: part.Text, Pending: part.Pending, Last: part.Last})
 			}
 			return out
 		},

@@ -13,27 +13,37 @@ func TestGrokPendingSpeedInEveryLanguage(t *testing.T) {
 	p.SelectedProvider = store.ProviderGrok
 	p.SetStatusBarGroups([][]store.Provider{{store.ProviderGrok}})
 	p.FloatingWindow.Providers = []store.Provider{store.ProviderGrok}
-	in := StatusInputs{Prefs: p, Live: []LivePart{{Provider: store.ProviderGrok, Pending: true}}}
+	in := StatusInputs{Prefs: p}
 	for _, lang := range l10n.Languages() {
 		t.Run(string(lang), func(t *testing.T) {
 			lc := l10n.New(lang)
-			want := lc.Text(l10n.KeyLiveSpeedPending)
-			for _, style := range store.StatusBarStyles() {
-				in.Prefs.StatusBarDisplayStyle = style
-				v := BuildStatusBar(lc, in)
-				if len(v.Components) != 1 || v.Components[0].LiveText != want || v.Components[0].Cells[0].LiveText != want || !strings.Contains(v.Tooltip, want) {
-					t.Fatalf("%s pending status bar = %+v", style, v)
-				}
-			}
-			v := BuildFloating(lc, in)
-			if !v.Live || len(v.Providers) != 1 || v.Providers[0].LiveText != want {
-				t.Fatalf("pending floating window = %+v", v)
+			for _, tc := range []struct {
+				name string
+				part LivePart
+				want string
+			}{
+				{"pending", LivePart{Pending: true}, lc.Text(l10n.KeyLiveSpeedPending)},
+				{"last", LivePart{Text: "50 tok/s", Last: true}, lc.Textf(l10n.KeyLiveSpeedLast, "50 tok/s")},
+				{"pending with rate", LivePart{Text: "50 tok/s", Pending: true}, "50 tok/s"},
+				{"pending with last rate", LivePart{Text: "50 tok/s", Pending: true, Last: true}, lc.Textf(l10n.KeyLiveSpeedLast, "50 tok/s")},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					tc.part.Provider = store.ProviderGrok
+					in.Live = []LivePart{tc.part}
+					for _, style := range store.StatusBarStyles() {
+						in.Prefs.StatusBarDisplayStyle = style
+						v := BuildStatusBar(lc, in)
+						if len(v.Components) != 1 || v.Components[0].LiveText != tc.want || v.Components[0].Cells[0].LiveText != tc.want || !strings.Contains(v.Tooltip, tc.want) {
+							t.Fatalf("%s status bar = %+v", style, v)
+						}
+					}
+					v := BuildFloating(lc, in)
+					if !v.Live || len(v.Providers) != 1 || v.Providers[0].LiveText != tc.want {
+						t.Fatalf("floating window = %+v", v)
+					}
+				})
 			}
 		})
-	}
-	in.Live[0].Text = "50 tok/s"
-	if got := BuildFloating(zh, in).Providers[0].LiveText; got != "50 tok/s" {
-		t.Fatalf("pending replaced a rate: %q", got)
 	}
 	in.Live = nil
 	if got := BuildFloating(zh, in); got.Live || got.Providers[0].LiveText != "" {

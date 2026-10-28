@@ -94,6 +94,7 @@ type LivePart struct {
 	Provider store.Provider
 	Text     string
 	Pending  bool
+	Last     bool
 }
 
 // GrokStatusText is the status text of Grok: the countdown of the first
@@ -255,7 +256,9 @@ type StatusBarView struct {
 func liveParts(lc l10n.Localizer, parts []LivePart) []LivePart {
 	var valid []LivePart
 	for _, part := range parts {
-		if part.Pending && part.Text == "" {
+		if part.Last && part.Text != "" {
+			part.Text = lc.Textf(l10n.KeyLiveSpeedLast, part.Text)
+		} else if part.Pending && part.Text == "" {
 			part.Text = lc.Text(l10n.KeyLiveSpeedPending)
 		}
 		if part.Text == "" || !part.Provider.Valid() || part.Provider.RemoteQuota() {

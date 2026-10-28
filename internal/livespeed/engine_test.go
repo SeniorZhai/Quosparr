@@ -95,7 +95,7 @@ func TestPartsGrokPendingYieldsToMeasuredSpeed(t *testing.T) {
 	measured := Response{Agent: "other", Source: "grok", Output: 100, Final: true,
 		Start: now.Add(-2 * time.Minute), End: now.Add(-2*time.Minute + 2*time.Second)}
 	parts = Parts(now, []Response{measured}, []Flight{flight})
-	if len(parts) != 1 || parts[0].Pending || parts[0].Text != "50 tok/s" {
+	if len(parts) != 1 || parts[0].Pending || !parts[0].Last || parts[0].Text != "50 tok/s" {
 		t.Fatalf("measured speed = %+v", parts)
 	}
 	for _, source := range []string{"codex", "claude"} {

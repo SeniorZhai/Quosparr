@@ -1,5 +1,5 @@
 // Package livespeed is the live output rate of local coding agents.
-// A number here is the last three seconds, never a historical average.
+// Grok exposes only completed turn averages, explicitly labeled by Parts.
 package livespeed
 
 import (
@@ -18,7 +18,7 @@ const (
 	fallbackLimit  = 10
 )
 
-// Response is one model call read from a local log.
+// Response is one model call (or completed Grok turn) read from a local log.
 // Start is zero when the request time is unknown.
 // Final is false for a streaming snapshot that is not the completed usage.
 type Response struct {
