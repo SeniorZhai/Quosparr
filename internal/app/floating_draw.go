@@ -66,18 +66,8 @@ func percentText(m runway.FloatingMeter) string {
 }
 
 func floatingProviderIcon(p *ui.Painter, prov store.Provider, r ui.Rect, k floatingInk) {
-	switch prov {
-	case store.ProviderCodex:
-		p.Image(codexProviderIcon, r, ui.Contain)
-	case store.ProviderClaude:
-		p.Image(claudeProviderIcon, r, ui.Contain)
-	case store.ProviderGrok:
-		// The Grok mark is monochrome: it takes the text color.
-		p.Icon(grokProviderIcon, r, k.text)
-	case store.ProviderDeepSeek:
-		p.Image(deepseekProviderIcon, r, ui.Contain)
-	case store.ProviderKimi, store.ProviderCopilot:
-		p.Icon(trayProviderIcon(prov), r, k.text)
+	if icon := trayProviderIcon(prov); icon != nil {
+		p.Icon(icon, r, k.text)
 	}
 }
 
