@@ -45,8 +45,30 @@ func TestHistoryModesMatchAppMetricsAndMissingRecords(t *testing.T) {
 		}
 	}
 	daily := renderHistory(l, history, 75, 0, usage.HeatmapDaily, now, false)
-	if !strings.HasPrefix(daily[3], "Mo  □") || !strings.HasPrefix(daily[6], "Th ░·") {
+	if !strings.HasPrefix(daily[3], "Mo   □ ") || !strings.HasPrefix(daily[6], "Th ░ · ") {
 		t.Fatalf("Sunday-first day alignment changed: %q", daily)
+	}
+}
+
+func TestHistoryUsesSpacedSolidCells(t *testing.T) {
+	l := l10n.New(l10n.English)
+	now := time.Date(2026, 2, 8, 12, 0, 0, 0, time.UTC)
+	history := TokenHistory{Available: true, Days: map[string]int64{
+		"2026-01-01": 10, "2026-01-02": 0, "2026-02-08": 50,
+	}}
+	lines := renderHistory(l, history, 75, 0, usage.HeatmapDaily, now, true)
+	ansi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	grid := ansi.ReplaceAllString(strings.Join(lines[2:9], "\n"), "")
+	if strings.Count(grid, "▄ ") != 3 || strings.Contains(grid, "▪") || !strings.Contains(grid, "· ") {
+		t.Fatalf("expected separated solid tiles with distinct missing records: %q", grid)
+	}
+	axis := ansi.ReplaceAllString(lines[9], "")
+	if strings.Index(axis, "Feb")-strings.Index(axis, "Jan") != 10 {
+		t.Fatalf("month labels must follow two-column week spacing: %q", axis)
+	}
+	chinese := renderHistory(l10n.New(l10n.SimplifiedChinese), history, 75, 0, usage.HeatmapDaily, time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC), false)
+	if !strings.HasPrefix(strings.TrimSpace(chinese[9]), "3月") {
+		t.Fatalf("a partial month at the left edge must not leave a clipped label: %q", chinese[9])
 	}
 }
 
@@ -57,7 +79,7 @@ func TestHistoryYearRangeMonthLabelsAndHorizontalScrolling(t *testing.T) {
 		history.Days[day.Format(time.DateOnly)] = 100
 	}
 	l := l10n.New(l10n.English)
-	wide := renderHistory(l, history, 75, 0, usage.HeatmapDaily, now, false)
+	wide := renderHistory(l, history, 95, 0, usage.HeatmapDaily, now, false)
 	if !strings.Contains(wide[0], "30.1K Tokens") || !strings.Contains(wide[1], "2026 UTC") || strings.Count(wide[2], "░") != 43 {
 		t.Fatalf("year-to-date range mismatch: %q", wide)
 	}
@@ -71,7 +93,7 @@ func TestHistoryYearRangeMonthLabelsAndHorizontalScrolling(t *testing.T) {
 	oldest := renderHistory(l, history, 35, -500, usage.HeatmapDaily, now, false)
 	limit := historyScrollLimit(l, 40, now)
 	clamped := renderHistory(l, history, 35, limit, usage.HeatmapDaily, now, false)
-	if limit != -12 || strings.Join(oldest, "") != strings.Join(clamped, "") || !strings.Contains(oldest[9], "Jan") || strings.Contains(latest[9], "Jan") || latest[9] == previous[9] {
+	if limit != -28 || strings.Join(oldest, "") != strings.Join(clamped, "") || !strings.Contains(oldest[9], "Jan") || strings.Contains(latest[9], "Jan") || latest[9] == previous[9] {
 		t.Fatalf("viewport boundaries: limit=%d, latest=%q previous=%q oldest=%q", limit, latest[9], previous[9], oldest[9])
 	}
 	for _, lines := range [][]string{latest, previous, oldest} {

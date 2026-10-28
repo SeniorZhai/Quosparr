@@ -11,6 +11,8 @@ import (
 	"github.com/licoy/quosparr/internal/usage"
 )
 
+const historyCellStep = 2
+
 // All user and provider text is fitted before adding terminal styling.
 func styled(s, color string, enabled bool) string {
 	if !enabled {
@@ -206,7 +208,7 @@ func historyScrollLimit(l l10n.Localizer, columns int, now time.Time) int {
 	}
 	prefixWidth := min(labelWidth+1, width-1)
 	grid := usage.BuildHeatmap(usage.HeatmapInput{Now: now, FirstWeekday: 1, Loc: time.UTC})
-	return -max(0, len(grid.Weeks)-(width-prefixWidth))
+	return -max(0, len(grid.Weeks)-max(1, (width-prefixWidth)/historyCellStep))
 }
 
 func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset int, mode usage.HeatmapMode, now time.Time, color bool) []string {
@@ -220,7 +222,7 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 		labelWidth = max(labelWidth, cells(label))
 	}
 	prefixWidth := min(labelWidth+1, width-1)
-	weeks := min(len(grid.Weeks), max(1, width-prefixWidth))
+	weeks := min(len(grid.Weeks), max(1, (width-prefixWidth)/historyCellStep))
 	start := max(0, min(len(grid.Weeks)-weeks, len(grid.Weeks)-weeks+historyOffset))
 	end := start + weeks
 	recorded := false
@@ -270,7 +272,7 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 		styled(pad(paired(title, value, width), width), "1;38;5;117", color),
 		styled(pad(paired(modeText, year, width), width), "38;5;114", color),
 	}
-	shades := []string{"38;5;238", "38;5;18", "38;5;25", "38;5;26", "38;5;33"}
+	shades := []string{"38;5;238", "38;5;24", "38;5;25", "38;5;33", "38;5;39"}
 	for weekday, label := range weekdays {
 		line := styled(pad(label, prefixWidth), "38;5;245", color)
 		for _, week := range grid.Weeks[start:end] {
@@ -281,14 +283,14 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 				cell = " "
 			} else if known || mode != usage.HeatmapDaily && day.Tokens > 0 {
 				cell = string([]rune("□░▒▓█")[day.Level])
-				if color && day.Level > 0 {
-					cell = "▪"
+				if color {
+					cell = "▄"
 				}
 				shade = shades[day.Level]
 			}
-			line += styled(cell, shade, color)
+			line += styled(cell, shade, color) + " "
 		}
-		lines = append(lines, line+strings.Repeat(" ", max(0, width-prefixWidth-weeks)))
+		lines = append(lines, line+strings.Repeat(" ", max(0, width-prefixWidth-weeks*historyCellStep)))
 	}
 	labels := []usage.HeatmapMonthLabel{}
 	for _, day := range grid.Weeks[start] {
@@ -304,16 +306,18 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, historyOffset 
 	}
 	axis := strings.Repeat(" ", prefixWidth)
 	for i, label := range labels {
-		at := prefixWidth + label.WeekIndex - start
+		at := prefixWidth + (label.WeekIndex-start)*historyCellStep
 		limit := width - at
 		if i+1 < len(labels) {
-			limit = min(limit, labels[i+1].WeekIndex-label.WeekIndex)
+			limit = min(limit, (labels[i+1].WeekIndex-label.WeekIndex)*historyCellStep)
 		}
 		month := runway.MonthTitle(label.Month, l.Language())
 		if width < 20 {
 			month = fmt.Sprint(label.Month)
 		}
-		axis += strings.Repeat(" ", max(0, at-cells(axis))) + fit(month, limit)
+		if cells(month) <= limit {
+			axis += strings.Repeat(" ", max(0, at-cells(axis))) + month
+		}
 	}
 	lines = append(lines, styled(pad(axis, width), "38;5;245", color))
 	return lines
