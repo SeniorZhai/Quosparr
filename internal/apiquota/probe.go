@@ -50,6 +50,10 @@ func Probe(ctx context.Context, client Doer, baseURL, apiKey string, now time.Ti
 
 	p := prober{client: client, key: key, now: now}
 	q := p.run(ctx, urls.OpenAIBase)
+	if q.Status == StatusUnsupported || q.Status == StatusUnauthorized {
+		_, err := FetchModels(ctx, client, baseURL, key, ModelStyleOpenAI)
+		q.ModelsAvailable = err == nil
+	}
 	return redactQuota(q, key)
 }
 

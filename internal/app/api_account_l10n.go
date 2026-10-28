@@ -95,3 +95,29 @@ func init() {
 		extraTexts[key] = texts
 	}
 }
+
+const (
+	xAPIModelsWithoutBalance textKey = "apiModelsWithoutBalance"
+	xAPIBalanceRestricted    textKey = "apiBalanceRestricted"
+)
+
+func init() {
+	extraTexts[xAPIModelsWithoutBalance] = [7]string{
+		"Model list available; no compatible balance endpoint found.",
+		"模型列表可读取；未发现兼容的余额查询接口。",
+		"模型清單可讀取；未發現相容的餘額查詢介面。",
+		"모델 목록을 읽을 수 있지만 호환되는 잔액 조회 API를 찾지 못했습니다.",
+		"モデル一覧は取得可能ですが、対応する残高照会 API が見つかりません。",
+		"Список моделей доступен; совместимый API баланса не найден.",
+		"Liste des modèles accessible ; aucun point d’accès compatible pour le solde trouvé.",
+	}
+	extraTexts[xAPIBalanceRestricted] = [7]string{
+		"Model list available; the balance endpoint rejected this key.",
+		"模型列表可读取；余额查询接口拒绝了当前密钥。",
+		"模型清單可讀取；餘額查詢介面拒絕了目前的金鑰。",
+		"모델 목록을 읽을 수 있지만 잔액 조회 API가 현재 키를 거부했습니다.",
+		"モデル一覧は取得可能ですが、残高照会 API がこのキーを拒否しました。",
+		"Список моделей доступен; API баланса отклонил этот ключ.",
+		"Liste des modèles accessible ; le point d’accès au solde a refusé cette clé.",
+	}
+}

@@ -425,8 +425,14 @@ func apiBalanceSummary(l l10n.Localizer, q *apiquota.Quota) string {
 	switch q.Status {
 	case apiquota.StatusAvailable:
 	case apiquota.StatusUnsupported:
+		if q.ModelsAvailable {
+			return tx(l, xAPIModelsWithoutBalance)
+		}
 		return tx(l, xAPIBalanceNone)
 	case apiquota.StatusUnauthorized:
+		if q.ModelsAvailable {
+			return tx(l, xAPIBalanceRestricted)
+		}
 		return tx(l, xAPIKeyRejected)
 	default:
 		return tx(l, xAPIBalanceFailed)

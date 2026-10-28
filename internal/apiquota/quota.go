@@ -43,14 +43,15 @@ const (
 // Quota is one probe result. It is JSON-serializable with stable camelCase
 // names and never contains the API key.
 type Quota struct {
-	Status    Status     `json:"status"`
-	Remaining *float64   `json:"remaining,omitempty"`
-	Used      *float64   `json:"used,omitempty"`
-	Total     *float64   `json:"total,omitempty"`
-	Unlimited bool       `json:"unlimited,omitempty"`
-	Unit      string     `json:"unit,omitempty"`
-	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-	Source    Source     `json:"source,omitempty"`
+	ModelsAvailable bool       `json:"modelsAvailable,omitempty"`
+	Status          Status     `json:"status"`
+	Remaining       *float64   `json:"remaining,omitempty"`
+	Used            *float64   `json:"used,omitempty"`
+	Total           *float64   `json:"total,omitempty"`
+	Unlimited       bool       `json:"unlimited,omitempty"`
+	Unit            string     `json:"unit,omitempty"`
+	ExpiresAt       *time.Time `json:"expiresAt,omitempty"`
+	Source          Source     `json:"source,omitempty"`
 	// Endpoint is the URL that produced the result; it never contains the key.
 	Endpoint  string    `json:"endpoint,omitempty"`
 	FetchedAt time.Time `json:"fetchedAt"`

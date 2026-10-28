@@ -24,6 +24,8 @@ func TestAPIBalanceSummaryStates(t *testing.T) {
 		want string
 	}{
 		{nil, ""},
+		{&apiquota.Quota{Status: apiquota.StatusUnsupported, ModelsAvailable: true}, tx(l, xAPIModelsWithoutBalance)},
+		{&apiquota.Quota{Status: apiquota.StatusUnauthorized, ModelsAvailable: true}, tx(l, xAPIBalanceRestricted)},
 		{&apiquota.Quota{Status: apiquota.StatusUnsupported}, tx(l, xAPIBalanceNone)},
 		{&apiquota.Quota{Status: apiquota.StatusUnauthorized}, tx(l, xAPIKeyRejected)},
 		{&apiquota.Quota{Status: apiquota.StatusError, Error: "timed out"}, tx(l, xAPIBalanceFailed)},

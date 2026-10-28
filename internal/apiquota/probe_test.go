@@ -363,3 +363,44 @@ func TestProbeIsRaceFreeAcrossCalls(t *testing.T) {
 		}
 	}
 }
+
+func TestProbeDetectsModelAPIWithoutBalance(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		balance         reply
+		models          reply
+		status          Status
+		modelsAvailable bool
+	}{
+		{"no balance", reply{404, ""}, reply{200, `{"data":[{"id":"example-model"}]}`}, StatusUnsupported, true},
+		{"restricted balance", reply{403, `{"error":"forbidden"}`}, reply{200, `{"data":[{"id":"example-model"}]}`}, StatusUnauthorized, true},
+		{"invalid key", reply{401, ""}, reply{401, ""}, StatusUnauthorized, false},
+		{"html models", reply{404, ""}, reply{200, "<html>Login</html>"}, StatusUnsupported, false},
+		{"models down", reply{404, ""}, reply{503, ""}, StatusUnsupported, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			site := newFakeSite(t, map[string]reply{"/api/usage/token": tc.balance, "/v1/models": tc.models})
+			q := Probe(context.Background(), site.client(), site.url()+"/v1", "fixture-key", testNow)
+			if q.Status != tc.status || q.ModelsAvailable != tc.modelsAvailable || q.Remaining != nil {
+				t.Fatalf("unexpected detection: %+v", q)
+			}
+			models, ok := site.find("/v1/models")
+			if !ok || models.auth != "Bearer fixture-key" {
+				t.Fatal("model detection did not use the configured site credential")
+			}
+			for _, r := range site.all() {
+				if strings.Contains(r.path, "management") {
+					t.Fatal("probed a management endpoint")
+				}
+			}
+		})
+	}
+	site := newFakeSite(t, map[string]reply{"/api/usage/token": {200, tokenBody}, "/api/status": {200, statusBody}})
+	q := Probe(context.Background(), site.client(), site.url(), "fixture-key", testNow)
+	if q.Status != StatusAvailable || q.ModelsAvailable {
+		t.Fatalf("balance detection changed: %+v", q)
+	}
+	if _, ok := site.find("/v1/models"); ok {
+		t.Fatal("unnecessary model probe for supported balance")
+	}
+}
