@@ -89,6 +89,27 @@ func TestRenderStaysInsideSmallTerminals(t *testing.T) {
 	}
 }
 
+func TestCompactCardKeepsProviderNameAndBalance(t *testing.T) {
+	l := l10n.New(l10n.English)
+	card := strings.Join(renderCard(l, runway.FloatingProvider{Name: "Claude", LiveText: "Last 50 tok/s",
+		Meters: []runway.FloatingMeter{{Label: "Balance", ValueText: "$12.34"}}}, 19, true, false), "\n")
+	for _, want := range []string{"Claude", "Last 50 tok/s", "$12.34"} {
+		if !strings.Contains(card, want) {
+			t.Errorf("compact card lost %q: %q", want, card)
+		}
+	}
+	if strings.Contains(card, "0%") {
+		t.Fatal("compact balance turned into a percentage")
+	}
+	view := View{Floating: runway.FloatingView{Providers: []runway.FloatingProvider{{Name: "Codex"}, {Name: "Grok"}, {Name: "Claude"}}}}
+	frame := renderDashboard(l, view, 40, 18, 0, 0, time.Now(), false)
+	for _, name := range []string{"Codex", "Grok", "Claude"} {
+		if !strings.Contains(frame, name) {
+			t.Errorf("empty compact card disappeared: %s", name)
+		}
+	}
+}
+
 type fakeTerminal struct {
 	keys      [][]byte
 	readError error

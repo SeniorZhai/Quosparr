@@ -77,11 +77,14 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 		styled(fit(subtitle, w), dim, color),
 		"",
 	}
-	compact := w < 34 || rows < 15
+	compact := w < 74 || rows < 24
 	available := rows - 5
 	if compact {
-		lines = lines[:1]
-		available = rows - 2
+		lines = lines[:2]
+		if rows < 12 {
+			lines = lines[:1]
+		}
+		available = rows - len(lines) - 1
 	}
 	cols := 1
 	if len(view.History) > 0 {
@@ -98,7 +101,7 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 	providers := view.Floating.Providers
 	var cards [][]string
 	for _, p := range providers {
-		card := renderCard(l, p, cardWidth, color)
+		card := renderCard(l, p, cardWidth, compact, color)
 		sections := [][]string{card}
 		if history, ok := view.History[p.Provider]; ok {
 			body := renderHistory(l, history, cardWidth-4, monthOffset, now, color)
@@ -153,7 +156,12 @@ func renderDashboard(l l10n.Localizer, view View, columns, rows, page, monthOffs
 		for len(lines) < rows-1 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, styled(fit(fmt.Sprintf("n/p %d/%d [/] 0 r c q/Esc", page+1, len(pages)), w), accent, color))
+		help := "[/] 0 n/p r c q"
+		pageLabel := fmt.Sprintf("%d/%d", page+1, len(pages))
+		if cells(help)+len(pageLabel)+1 > w {
+			help = "[]np q"
+		}
+		lines = append(lines, styled(paired(help, pageLabel, w), accent, color))
 		return strings.Join(lines, "\r\n")
 	}
 	for len(lines) < rows-2 {
@@ -318,14 +326,19 @@ func renderHistory(l l10n.Localizer, history TokenHistory, width, monthOffset in
 	return lines
 }
 
-func renderCard(l l10n.Localizer, p runway.FloatingProvider, width int, color bool) []string {
+func renderCard(l l10n.Localizer, p runway.FloatingProvider, width int, compact, color bool) []string {
 	inner := width - 4
 	border := "38;5;239"
 	lines := []string{styled("╭"+strings.Repeat("─", width-2)+"╮", border, color)}
 	row := func(s, style string) {
 		lines = append(lines, styled("│ ", border, color)+styled(pad(s, inner), style, color)+styled(" │", border, color))
 	}
-	row(paired(p.Name, p.LiveText, inner), "1;38;5;255")
+	if compact && cells(p.Name)+cells(p.LiveText)+1 > inner {
+		row(p.Name, "1;38;5;255")
+		row(p.LiveText, "1;38;5;255")
+	} else {
+		row(paired(p.Name, p.LiveText, inner), "1;38;5;255")
+	}
 	for _, m := range p.Meters[:min(2, len(p.Meters))] {
 		percent := min(100, max(0, m.RemainingPercent))
 		value := m.ValueText
@@ -341,6 +354,18 @@ func renderCard(l l10n.Localizer, p runway.FloatingProvider, width int, color bo
 		}
 		if m.ValueText != "" {
 			shade = "38;5;117"
+		}
+		if compact {
+			if m.Reset != "" && cells(m.Label)+cells(value)+cells(m.Reset)+4 <= inner {
+				value += " · " + m.Reset
+			}
+			label := m.Label
+			if n := min(12, inner-cells(label)-cells(value)-2); n >= 3 && m.ValueText == "" {
+				filled := percent * n / 100
+				label += " " + strings.Repeat("━", filled) + strings.Repeat("─", n-filled)
+			}
+			row(paired(label, value, inner), "1;"+shade)
+			continue
 		}
 		row(paired(m.Label, value, inner), "1;"+shade)
 		if m.ValueText == "" {
@@ -363,7 +388,7 @@ func renderCard(l l10n.Localizer, p runway.FloatingProvider, width int, color bo
 			text = strings.TrimLeft(strings.TrimPrefix(text, part), " ")
 		}
 	}
-	for len(lines) < 8 {
+	for len(lines) < 3 || !compact && len(lines) < 8 {
 		row("", "0")
 	}
 	return append(lines, styled("╰"+strings.Repeat("─", width-2)+"╯", border, color))

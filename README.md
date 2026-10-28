@@ -139,7 +139,7 @@ In the app, open **Advanced → Terminal dashboard → Install TUI**. After inst
 
 The setup wizard opens when no TUI configuration exists. Run `quosparr --setup` or press `c` in the TUI to configure it again. Choose existing official CLI logins, enter an API key and service URL manually, or explicitly import the desktop app's current credentials. Provider selection, language and refresh interval belong to the TUI configuration.
 
-The display updates every second and adapts to terminal size. Quota requests follow the saved TUI refresh interval, five minutes by default. Press `r` to refresh, `n` / `p` / `Tab` to browse provider pages in a small terminal, and `q`, `Esc` or `Ctrl+C` to exit.
+The display updates every second and adapts to terminal size. Small terminals use a compact layout with shorter quota rows and a condensed footer, prioritizing quotas and monthly usage on the same screen; provider pages remain available when space is limited. Quota requests follow the saved TUI refresh interval, five minutes by default. Press `r` to refresh, `n` / `p` / `Tab` to browse provider pages, and `q`, `Esc` or `Ctrl+C` to exit.
 
 Codex, Claude and Grok cards also show a calendar-month heatmap of local Token usage by UTC date and a total for the displayed month, which can span accounts. Browse the latest 12 calendar months with `[` / `]`, or press `0` to return to the current month, which runs through today. History refreshes every five minutes (or a longer configured interval); `r` refreshes it immediately. Missing records are distinct from recorded zero usage.
 

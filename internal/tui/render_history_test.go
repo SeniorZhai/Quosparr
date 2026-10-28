@@ -170,6 +170,41 @@ func TestNarrowDashboardKeepsRefreshSubtitle(t *testing.T) {
 	}
 }
 
+func TestCompactDashboardKeepsQuotaAndMonthOnOnePage(t *testing.T) {
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	view := historyRenderFixture(now)
+	for _, size := range [][2]int{{40, 18}, {60, 18}, {80, 18}} {
+		for _, lang := range l10n.Languages() {
+			lc := l10n.New(lang)
+			frame := renderDashboard(lc, view, size[0], size[1], 0, 0, now, false)
+			for _, want := range []string{"Codex", "73%", "28%", "2026-10 UTC", "[/] 0", "n/p", "q"} {
+				if !strings.Contains(frame, want) {
+					t.Errorf("%s %v first page lost %q", lang, size, want)
+				}
+			}
+			for _, weekday := range strings.Split(lc.TUI("historyWeekdays"), " ") {
+				if !strings.Contains(frame, "│ "+weekday+" ") {
+					t.Errorf("%s %v month was split: missing %s", lang, size, weekday)
+				}
+			}
+		}
+	}
+}
+
+func TestTinyDashboardKeepsQuitAndPageControls(t *testing.T) {
+	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
+	for _, size := range [][2]int{{20, 8}, {13, 6}} {
+		for page := 0; page < 48; page++ {
+			frame := renderDashboard(l10n.New(l10n.English), historyRenderFixture(now), size[0], size[1], page, 0, now, false)
+			lines := strings.Split(frame, "\r\n")
+			footer := lines[len(lines)-1]
+			if !strings.Contains(footer, "q") || !strings.Contains(footer, "np") || !strings.Contains(footer, "[]") {
+				t.Errorf("%v page %d lost controls: %q", size, page, footer)
+			}
+		}
+	}
+}
+
 func historyRenderFixture(now time.Time) View {
 	history := TokenHistory{From: now.AddDate(0, 0, -370).Truncate(24 * time.Hour), Through: now.Truncate(24 * time.Hour), Available: true, Days: make(map[string]int64)}
 	for day, i := history.From, 0; !day.After(history.Through); day, i = day.AddDate(0, 0, 1), i+1 {
