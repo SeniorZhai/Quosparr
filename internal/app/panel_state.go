@@ -18,6 +18,7 @@ type panelState struct {
 	account           string
 	accountGeneration uint64
 	cost              panelCostState
+	costOverview      panelCostOverviewState
 	cache             panelCacheState
 	accounts          accountsState
 	reaction          panelReactionState

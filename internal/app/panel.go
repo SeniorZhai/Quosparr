@@ -1,6 +1,8 @@
 package app
 
 import (
+	"time"
+
 	"github.com/egoist/mygo/ui"
 	"github.com/licoy/quosparr/internal/l10n"
 	"github.com/licoy/quosparr/internal/runway"
@@ -29,6 +31,9 @@ func (a *App) panelView(c *ui.Context) {
 	acts := a.PanelActions()
 	snap.Provider = prefs.SelectedProvider
 	a.syncPanelAccount(snap, prefs)
+	if a.panel != nil {
+		a.syncCostOverview(acts, time.Now())
+	}
 	if a.panel != nil && prefs.ShowsCacheAnalysis {
 		a.syncCacheSummary(acts)
 	}

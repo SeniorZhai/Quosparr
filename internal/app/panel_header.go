@@ -28,6 +28,8 @@ func panelHeader(c *ui.Context, a *App, l l10n.Localizer, prefs store.Preference
 			ui.Spacer(c).Grow(1)
 			panelHeaderButtons(c, a, l, prefs, acts, panelBusy(snap, grokView))
 		})
+		panelCostOverview(c, l, &a.panelState.costOverview)
+		hairline(c).Margin(10, 0, 0, 0)
 		if providers := prefs.PanelSelection(); len(providers) > 1 {
 			providerStrip(c, a, l, snap, providers, prefs.SelectedProvider, acts.SelectProvider)
 		}
@@ -186,6 +188,7 @@ func panelHeaderButtons(c *ui.Context, a *App, l l10n.Localizer, prefs store.Pre
 // cost query or reaction when a page that shows them is open.
 func refreshEverything(a *App, acts PanelActions) {
 	acts.Refresh()
+	a.startCostOverview(acts, time.Now())
 	if a.settings.Prefs().ShowsCacheAnalysis && acts.QueryCache != nil {
 		a.startCacheSummary(acts)
 		if a.panelState.detail == store.ModuleCacheAnalysis && !a.panelState.cache.detail.isToday() {

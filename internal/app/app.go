@@ -34,11 +34,12 @@ type PanelActions struct {
 	SelectProvider func(store.Provider)
 	// PanelShown reports the panel opening and closing; the panel provider's
 	// local data loads only while it shows.
-	PanelShown    func(open bool)
-	QueryCost     func(context.Context, store.Provider, CostQuery) (usage.Summary, error)
-	QueryCache    func(context.Context, store.Provider, CostQuery) (cachehit.Report, error)
-	QueryReaction func(context.Context) (resettoday.ReactionSnapshot, error)
-	React         func(context.Context) (resettoday.ReactionPostResult, error)
+	PanelShown        func(open bool)
+	QueryCost         func(context.Context, store.Provider, CostQuery) (usage.Summary, error)
+	QueryCostOverview func(context.Context) (usage.CostOverview, error)
+	QueryCache        func(context.Context, store.Provider, CostQuery) (cachehit.Report, error)
+	QueryReaction     func(context.Context) (resettoday.ReactionSnapshot, error)
+	React             func(context.Context) (resettoday.ReactionPostResult, error)
 	// RepairSessions rebuilds the session index after a backup; the panel
 	// asks for confirmation first.
 	RepairSessions func()
@@ -161,6 +162,8 @@ func (a *App) PanelActions() PanelActions {
 // SetPanelActions installs the panel controls. Call it before the panel opens.
 func (a *App) SetPanelActions(p PanelActions) {
 	a.cancelPanelDetails()
+	a.cancelCostOverview()
+	a.panelState.costOverview = panelCostOverviewState{generation: a.panelState.costOverview.generation}
 	a.snapMu.Lock()
 	a.panelActs = p
 	a.snapMu.Unlock()
@@ -366,6 +369,7 @@ func (a *App) panelClosed() {
 		shown(false)
 	}
 	a.cancelPanelDetails()
+	a.cancelCostOverview()
 	a.panelState.detail = ""
 	a.panelState.chartMode = ""
 	a.panelState.scrollDetail = ""
@@ -550,6 +554,7 @@ func (a *App) OpenSettings() {
 
 func (a *App) shutdown() {
 	a.cancelPanelDetails()
+	a.cancelCostOverview()
 	if a.setUI != nil {
 		a.setUI.cancelAccountTask()
 		a.setUI.cancelSessionTasks()
