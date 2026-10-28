@@ -331,6 +331,9 @@ func statusCells(lc l10n.Localizer, in StatusInputs, p store.Provider, picked []
 // time left, or why there is none.
 func statusTip(lc l10n.Localizer, in StatusInputs, p store.Provider, picked []Meter) string {
 	name := lc.Text(providerStatusKey(p))
+	if p == store.ProviderClaude && in.Claude.RemoteUsage {
+		name += " (SSH)"
+	}
 	if len(picked) == 0 {
 		return name + ": " + floatingStatus(lc, in, p)
 	}

@@ -100,7 +100,8 @@ type Preferences struct {
 	ThemeColor string `json:"themeColor,omitempty"`
 	// FontFamily is Go-only too: the family the app's windows use, omitted
 	// for the system's, and an unusable name falls back to it.
-	FontFamily string `json:"fontFamily,omitempty"`
+	FontFamily    string `json:"fontFamily,omitempty"`
+	ClaudeSSHHost string `json:"claudeSSHHost,omitempty"`
 	// QuotaResetTimeFormat is Go-only too: omitted for the relative countdown,
 	// and an unreadable value falls back to it.
 	QuotaResetTimeFormat ResetTimeFormat `json:"quotaResetTimeFormat,omitempty"`

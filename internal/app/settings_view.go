@@ -137,16 +137,18 @@ const (
 // settingsUI is the state of the settings window's view: which tab, the
 // proxy form being edited, and the dialogs. Preferences live in Settings.
 type settingsUI struct {
-	remoteEditing map[store.Provider]bool
-	kimiKey       string
-	deepseekKey   string
-	copilotToken  string
-	kimiIntl      bool
-	remoteNote    string
-	remoteErr     bool
-	s             *Settings
-	opts          SettingsOptions
-	win           *mygo.Window // nil in tests
+	claudeSSHHost  string
+	claudeSSHReady bool
+	remoteEditing  map[store.Provider]bool
+	kimiKey        string
+	deepseekKey    string
+	copilotToken   string
+	kimiIntl       bool
+	remoteNote     string
+	remoteErr      bool
+	s              *Settings
+	opts           SettingsOptions
+	win            *mygo.Window // nil in tests
 
 	tab      settingsTab
 	accounts *accountForm
@@ -628,6 +630,7 @@ func (u *settingsUI) accountsPage(c *ui.Context) {
 // ---- Advanced ----
 
 func (u *settingsUI) advancedPage(c *ui.Context) {
+	u.claudeSSHGroup(c)
 	s, l := u.s, u.L()
 	p := s.Prefs()
 	sys := s.System()

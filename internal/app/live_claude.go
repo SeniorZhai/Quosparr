@@ -25,6 +25,10 @@ import (
 )
 
 type claudeBridge struct {
+	sshFetch          func(context.Context, string) (claude.UsageSnapshot, error)
+	sshSnapshot       *claude.UsageSnapshot
+	sshError          error
+	sshAttempt        time.Time
 	pricingSnapshot   func() pricing.Snapshot
 	pricingGeneration uint64
 	mod               *claude.Module
@@ -64,6 +68,9 @@ func (g *claudeBridge) State(now time.Time) runway.ClaudeState {
 		st.ResetCredits, st.ResetCreditSummary = &c, &sum
 	}
 	st.Widget = claudeWidget(st)
+	if g.prefs.ClaudeSSHHost != "" {
+		st = g.remoteStateLocked(st)
+	}
 	return st
 }
 
@@ -74,6 +81,12 @@ func (g *claudeBridge) Refresh(ctx context.Context, force bool) error {
 	defer g.refreshMu.Unlock()
 	if ctx.Err() != nil {
 		return ctx.Err()
+	}
+	g.mu.Lock()
+	host := g.prefs.ClaudeSSHHost
+	g.mu.Unlock()
+	if host != "" {
+		return g.refreshSSH(ctx, host, force)
 	}
 	if g.mod != nil && g.mod.Store != nil {
 		// Follow the Claude Code login first: the first run imports it and an
@@ -112,6 +125,9 @@ func (g *claudeBridge) SetOnChange(fn func()) {
 
 func (g *claudeBridge) setPreferences(p store.Preferences, langs []string) {
 	g.mu.Lock()
+	if g.prefs.ClaudeSSHHost != p.ClaudeSSHHost {
+		g.sshSnapshot, g.sshError, g.sshAttempt = nil, nil, time.Time{}
+	}
 	rangeChanged := g.prefs.APICostSummaryRange != p.APICostSummaryRange
 	speedChanged := g.prefs.ShowsSpeedAnalysis != p.ShowsSpeedAnalysis
 	if rangeChanged || g.prefs.ShowsRecentSessions != p.ShowsRecentSessions || speedChanged {

@@ -82,6 +82,7 @@ func readPreferences(r *reader) Preferences {
 	p.AccountPrivacyModeEnabled = r.bool("accountPrivacyModeEnabled", p.AccountPrivacyModeEnabled)
 	p.ThemeColor = readThemeColor(r, "themeColor")
 	p.FontFamily = readFontFamily(r, "fontFamily")
+	p.ClaudeSSHHost, _ = r.string("claudeSSHHost")
 	p.QuotaResetTimeFormat = readResetTimeFormat(r, "quotaResetTimeFormat")
 	p.ProxyTestURL = readProxyTestURL(r, "proxyTestURL")
 	p.ShowsSpeedAnalysis = r.bool("showsSpeedAnalysis", p.ShowsSpeedAnalysis)

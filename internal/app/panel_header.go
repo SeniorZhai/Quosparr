@@ -283,6 +283,10 @@ func claudeIdentity(l l10n.Localizer, prefs store.Preferences, snap runway.Snaps
 }
 
 func claudeIdentityRow(c *ui.Context, a *App, l l10n.Localizer, prefs store.Preferences, snap runway.Snapshot) {
+	if snap.Claude.RemoteUsage {
+		dimText(c, tx(l, xClaudeSSHSource))
+		return
+	}
 	name := claudeIdentity(l, prefs, snap)
 	t := c.Theme()
 	row := ui.ButtonBase(c).Label(name).Tooltip(name).Padding(3, 6).Gap(6).Radius(radiusRow).AlignItems(ui.Center).Justify(ui.Start).Margin(8, -6, 0, -6).Cursor(ui.CursorPointer)

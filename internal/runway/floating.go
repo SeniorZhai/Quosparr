@@ -42,6 +42,9 @@ func BuildFloating(lc l10n.Localizer, in StatusInputs) FloatingView {
 	var v FloatingView
 	for _, p := range in.Prefs.FloatingSelection() {
 		item := FloatingProvider{Provider: p, Name: lc.Text(providerStatusKey(p))}
+		if p == store.ProviderClaude && in.Claude.RemoteUsage {
+			item.Name += " (SSH)"
+		}
 		for _, m := range floatingMeters(metersOf(in, p), preferredOf(p)) {
 			fm := FloatingMeter{Label: meterTitle(lc, m), RemainingPercent: m.RemainingPercent, Health: m.Health, ValueText: m.ValueText}
 			if m.HasReset() {

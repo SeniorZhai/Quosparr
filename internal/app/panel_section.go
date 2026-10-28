@@ -32,6 +32,9 @@ func panelBody(c *ui.Context, l l10n.Localizer, prefs store.Preferences, snap ru
 		if prefs.SelectedProvider.RemoteQuota() && m != store.ModuleQuota {
 			continue
 		}
+		if claude && snap.Claude.RemoteUsage && m == store.ModuleResetCredits {
+			continue
+		}
 		if local && m == store.ModuleResetCredits && snap.Codex.ResetCreditSummary == nil {
 			continue
 		}

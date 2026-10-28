@@ -127,6 +127,7 @@ const (
 // ClaudeState is the Claude view used by the status bar, widget and panel.
 // ExtraUsage is the raw used/limit text.
 type ClaudeState struct {
+	RemoteUsage    bool
 	Availability   ClaudeAvailability
 	Accounts       AccountsView
 	AccountQuotas  map[string]ClaudeAccountQuota
