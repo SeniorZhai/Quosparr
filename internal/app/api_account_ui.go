@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"time"
@@ -438,6 +439,9 @@ func apiBalanceSummary(l l10n.Localizer, q *apiquota.Quota) string {
 		return tx(l, xAPIBalanceFailed)
 	}
 	text := apiBalanceValue(l, *q)
+	if len(q.Windows) > 0 {
+		return accountUpdatedSummary(l, text, q.FetchedAt)
+	}
 	if text == "" {
 		return tx(l, xAPIBalanceNone)
 	}
@@ -450,6 +454,12 @@ func apiBalanceValue(l l10n.Localizer, q apiquota.Quota) string {
 	switch {
 	case q.Status != apiquota.StatusAvailable:
 		return ""
+	case len(q.Windows) > 0:
+		var parts []string
+		for _, m := range runway.APIQuotaMeters(l, q, time.Now()) {
+			parts = append(parts, fmt.Sprintf("%s %d%%", m.Title, m.RemainingPercent))
+		}
+		return strings.Join(parts, " · ")
 	case q.Unlimited:
 		return tx(l, xAPIUnlimited)
 	case q.Remaining == nil && q.Used != nil:
@@ -463,6 +473,12 @@ func apiBalanceValue(l l10n.Localizer, q apiquota.Quota) string {
 func apiBalanceBlock(c *ui.Context, l l10n.Localizer, q *apiquota.Quota, view accountQuotaOptions) {
 	if q == nil {
 		calloutDim(c, l.Text(l10n.KeyNotLoaded)).FontSize(fsCaption)
+		return
+	}
+	if len(q.Windows) > 0 {
+		for _, m := range runway.APIQuotaMeters(l, *q, time.Now()) {
+			accountMeter(c, l, meterSpec{title: m.Title, remaining: m.RemainingPercent, used: m.UsedPercent, current: view.current}, view)
+		}
 		return
 	}
 	value := apiBalanceValue(l, *q)
@@ -501,6 +517,10 @@ func panelAPIBalance(c *ui.Context, l l10n.Localizer, baseURL string, q *apiquot
 	}
 	ui.Column(c).Gap(6).Children(func() {
 		switch {
+		case q != nil && len(q.Windows) > 0:
+			for _, meter := range runway.APIQuotaMeters(l, *q, time.Now()) {
+				grokMeterRow(c, l, meter, true, time.Now(), resetSwitch{})
+			}
 		case value != "":
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, l.Text(l10n.KeyWidgetBalance)).FontSize(fsCallout).FontWeight(600).Grow(1).Basis(0)

@@ -4,6 +4,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/licoy/quosparr/internal/apiquota"
 	"github.com/licoy/quosparr/internal/l10n"
@@ -82,6 +83,26 @@ func APIBalanceMeter(lc l10n.Localizer, q apiquota.Quota) (Meter, bool) {
 		ValueText:        text,
 		Balance:          true,
 	}, true
+}
+
+// APIQuotaMeters shares relay balances and upstream quota windows across UIs.
+func APIQuotaMeters(lc l10n.Localizer, q apiquota.Quota, now time.Time) []Meter {
+	if q.Status != apiquota.StatusAvailable {
+		return nil
+	}
+	if len(q.Windows) > 0 {
+		meters := make([]Meter, 0, len(q.Windows))
+		for _, window := range q.Windows {
+			meters = append(meters, NewMeter(window.Title, MeterWindow{
+				UsedPercent: int(math.Round(window.UsedPercent)), WindowMinutes: window.WindowMinutes, ResetsAt: window.ResetsAt,
+			}, now, DefaultMarkers(), SourceStandard))
+		}
+		return meters
+	}
+	if meter, ok := APIBalanceMeter(lc, q); ok {
+		return []Meter{meter}
+	}
+	return nil
 }
 
 // meterTitle is the short status title: the window name, or the balance

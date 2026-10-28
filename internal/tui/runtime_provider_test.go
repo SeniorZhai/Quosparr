@@ -21,6 +21,32 @@ import (
 
 type runtimeTransport func(*http.Request) (*http.Response, error)
 
+func TestRuntimeReadsAdvertisedClaudeUpstreamWindows(t *testing.T) {
+	home := t.TempDir()
+	account := runtimeCredential(t, home, "claude-api-tui-", `{"apiKey":"fake-relay-key"}`)
+	account.BaseURL = "https://relay.example"
+	ctx := runtimeNetwork(t, func(r *http.Request) (*http.Response, error) {
+		code, body := 404, "{}"
+		switch r.URL.Path {
+		case "/":
+			if r.Header.Get("Authorization") != "" {
+				t.Error("public metadata received the key")
+			}
+			code, body = 200, `{"apis":["/v1/magpie/quotas"]}`
+		case "/v1/magpie/quotas":
+			if r.Header.Get("Authorization") != "Bearer fake-relay-key" {
+				t.Error("upstream quota missing the configured key")
+			}
+			code, body = 200, `{"data":[{"kind":"subscription","provider":"gateway-claude","readAt":"2026-08-21T12:00:00Z","windows":[{"name":"5 hour","used":42,"remaining":58,"resetsAt":"2026-08-21T16:00:00Z"},{"name":"7 day","used":21,"remaining":79}]}]}`
+		}
+		return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	reading := readProvider(ctx, home, store.ProviderClaude, account, l10n.New(l10n.English), time.Now())
+	if len(reading.meters) != 2 || reading.meters[0].RemainingPercent != 58 || reading.meters[1].RemainingPercent != 79 || reading.meters[0].Balance || reading.meters[0].ValueText != "" {
+		t.Fatalf("upstream windows not shared with TUI: %+v, %s", reading.meters, reading.status)
+	}
+}
+
 func (f runtimeTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func runtimeNetwork(t *testing.T, handler runtimeTransport) context.Context {
@@ -43,6 +69,21 @@ func runtimeCredential(t *testing.T, home, prefix, body string) Account {
 		t.Fatal(err)
 	}
 	return Account{Mode: "imported", CredentialID: id}
+}
+
+func TestRuntimeExplainsMissingAPIBalanceWithoutCallingItLoginFailure(t *testing.T) {
+	ctx := runtimeNetwork(t, func(r *http.Request) (*http.Response, error) {
+		body, code := `{}`, 404
+		if strings.HasSuffix(r.URL.Path, "/models") {
+			body, code = `{"data":[{"id":"test-model"}]}`, 200
+		}
+		return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+	})
+	lc := l10n.New(l10n.SimplifiedChinese)
+	got := readAPIQuota(ctx, "https://relay.example/v1", "fixture-api-key", store.ProviderClaude, lc, time.Now())
+	if len(got.meters) != 0 || got.status != lc.TUI("balanceUnsupported") {
+		t.Fatalf("unsupported API balance status = %q", got.status)
+	}
 }
 
 func TestRuntimeRejectsExpiredImportedCredentialsWithoutRefreshing(t *testing.T) {

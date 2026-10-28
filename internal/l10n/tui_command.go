@@ -1,6 +1,15 @@
 package l10n
 
 func init() {
+	tuiStrings["balanceUnsupported"] = [7]string{
+		"API account: no compatible balance endpoint found",
+		"API 账号：未找到兼容的余额查询接口",
+		"API 帳號：未找到相容的餘額查詢介面",
+		"API 계정: 호환되는 잔액 조회 API를 찾을 수 없습니다",
+		"API アカウント：対応する残高照会 API が見つかりません",
+		"Аккаунт API: совместимый API баланса не найден",
+		"Compte API : aucun point de terminaison de solde compatible trouvé",
+	}
 	tuiStrings["configError"] = [7]string{
 		"Could not read or save TUI configuration. Check ~/.quosparr/tui and its permissions.",
 		"无法读取或保存 TUI 配置，请检查 ~/.quosparr/tui 及其权限。",

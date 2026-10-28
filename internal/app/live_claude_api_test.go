@@ -125,6 +125,27 @@ func TestBuildClaudeStateForACurrentAPIAccount(t *testing.T) {
 	}
 }
 
+func TestBuildClaudeStateForUpstreamAPIQuota(t *testing.T) {
+	q := apiquota.Quota{Status: apiquota.StatusAvailable, Source: apiquota.SourceUpstream, Provider: "claude", FetchedAt: apiTestNow, Windows: []apiquota.Window{
+		{Title: "5 hour", UsedPercent: 42, RemainingPercent: 58, WindowMinutes: 300, ResetsAt: apiTestNow.Add(time.Hour)},
+		{Title: "7 day", UsedPercent: 21, RemainingPercent: 79, WindowMinutes: 10080},
+	}}
+	mod, acc := apiTestModule(t, &q)
+	st := buildClaudeState(mod, l10n.New(l10n.English), false)
+	if len(st.Meters) != 2 || st.Meters[0].Balance || st.Meters[0].RemainingPercent != 58 || st.Meters[1].RemainingPercent != 79 {
+		t.Fatalf("upstream API windows: %+v", st.Meters)
+	}
+	if row := st.AccountQuotas[acc.ID]; row.Balance != "" || row.UsedPercent != 42 || row.Title != "5 hour" {
+		t.Fatalf("account treated percentages as money: %+v", row)
+	}
+	if st.Widget == nil || st.Widget.BalanceUSD != nil || st.Widget.BalanceText != nil || len(st.Widget.Quota) != 2 {
+		t.Fatal("widget did not preserve upstream windows")
+	}
+	if summary := apiBalanceSummary(l10n.New(l10n.English), &q); strings.Contains(summary, "Balance") || !strings.Contains(summary, "58%") {
+		t.Fatalf("summary mixed quota and balance: %s", summary)
+	}
+}
+
 func TestBuildClaudeStateAPIAvailability(t *testing.T) {
 	lc := l10n.New(l10n.English)
 

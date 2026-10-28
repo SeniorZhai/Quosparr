@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/licoy/quosparr/internal/apiquota"
 	"github.com/licoy/quosparr/internal/claude"
@@ -149,9 +150,7 @@ func relabelClaudeAPI(lc l10n.Localizer, st *runway.ClaudeState) {
 		return
 	}
 	if st.API.Quota != nil {
-		if m, ok := runway.APIBalanceMeter(lc, *st.API.Quota); ok {
-			st.Meters = []runway.Meter{m}
-		}
+		st.Meters = runway.APIQuotaMeters(lc, *st.API.Quota, time.Now())
 	}
 	if st.API.ErrorCode != "" {
 		st.LastError = claudeErrorCodeText(lc, st.API.ErrorCode)
@@ -174,10 +173,13 @@ func claudeAPIAccountQuota(lc l10n.Localizer, account claude.ManagedAccount) (ru
 	if !account.APIQuota.FetchedAt.IsZero() {
 		q.UpdatedAt = account.APIQuota.FetchedAt
 	}
-	if m, ok := runway.APIBalanceMeter(lc, *account.APIQuota); ok {
+	if meters := runway.APIQuotaMeters(lc, *account.APIQuota, time.Now()); len(meters) > 0 {
+		m := meters[0]
 		q.Title = m.Title
 		q.UsedPercent = m.UsedPercent
-		q.Balance = runway.APIBalanceDetail(*account.APIQuota)
+		if m.Balance {
+			q.Balance = runway.APIBalanceDetail(*account.APIQuota)
+		}
 	}
 	return q, true
 }

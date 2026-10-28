@@ -2,12 +2,32 @@ package runway
 
 import (
 	"testing"
+	"time"
 
 	"github.com/licoy/quosparr/internal/apiquota"
 	"github.com/licoy/quosparr/internal/store"
 )
 
 func f64(v float64) *float64 { return &v }
+
+func TestAPIQuotaWindowsAreSharedPercentageMeters(t *testing.T) {
+	now := time.Now()
+	q := apiquota.Quota{Status: apiquota.StatusAvailable, Source: apiquota.SourceUpstream, Windows: []apiquota.Window{
+		{Title: "5 hour", UsedPercent: 42, RemainingPercent: 58, WindowMinutes: 300, ResetsAt: now.Add(time.Hour)},
+		{Title: "7 day", UsedPercent: 21, RemainingPercent: 79, WindowMinutes: 10080},
+	}}
+	meters := APIQuotaMeters(en, q, now)
+	if len(meters) != 2 || meters[0].RemainingPercent != 58 || meters[0].Balance || meters[0].ValueText != "" || !meters[0].HasReset() {
+		t.Fatalf("upstream percentages became a balance: %+v", meters)
+	}
+	if APIBalanceText(q) != "" {
+		t.Fatal("upstream quota was formatted as money")
+	}
+	view := BuildFloating(en, StatusInputs{Prefs: store.Preferences{FloatingWindow: store.FloatingWindow{Providers: []store.Provider{store.ProviderClaude}}}, Claude: ClaudeState{Meters: meters}, Now: now})
+	if len(view.Providers) != 1 || len(view.Providers[0].Meters) != 2 || view.Providers[0].Meters[0].RemainingPercent != 58 {
+		t.Fatalf("floating view lost upstream windows: %+v", view)
+	}
+}
 
 func TestAPIBalanceAmountUnits(t *testing.T) {
 	cases := []struct {

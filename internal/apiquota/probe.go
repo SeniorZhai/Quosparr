@@ -31,6 +31,12 @@ type Doer interface {
 // 8 seconds and ctx. The key is trimmed and sent only as a Bearer token; it is
 // redacted from the result. An empty key is reported as unsupported.
 func Probe(ctx context.Context, client Doer, baseURL, apiKey string, now time.Time) Quota {
+	return ProbeForProvider(ctx, client, baseURL, apiKey, "", now)
+}
+
+// ProbeForProvider additionally reads a site's advertised upstream quota for
+// one provider. More than one matching account is left unresolved.
+func ProbeForProvider(ctx context.Context, client Doer, baseURL, apiKey, provider string, now time.Time) Quota {
 	if now.IsZero() {
 		now = time.Now()
 	}
@@ -50,6 +56,11 @@ func Probe(ctx context.Context, client Doer, baseURL, apiKey string, now time.Ti
 
 	p := prober{client: client, key: key, now: now}
 	q := p.run(ctx, urls.OpenAIBase)
+	if q.Status == StatusUnsupported && provider != "" {
+		if upstream, ok := p.upstream(ctx, urls.OpenAIBase, provider); ok {
+			q = upstream
+		}
+	}
 	if q.Status == StatusUnsupported || q.Status == StatusUnauthorized {
 		_, err := FetchModels(ctx, client, baseURL, key, ModelStyleOpenAI)
 		q.ModelsAvailable = err == nil
@@ -188,6 +199,9 @@ func redact(s, key string) string {
 func redactQuota(q Quota, key string) Quota {
 	q.Endpoint = redact(q.Endpoint, key)
 	q.Error = redact(q.Error, key)
+	for i := range q.Windows {
+		q.Windows[i].Title = redact(q.Windows[i].Title, key)
+	}
 	if strings.Contains(strings.ToUpper(q.Unit), strings.ToUpper(key)) {
 		q.Unit = ""
 	}

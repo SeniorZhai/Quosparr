@@ -30,6 +30,7 @@ const (
 	SourceSubscriptionUsage Source = "subscriptionUsage"
 	SourceSubscriptionOnly  Source = "subscriptionOnly"
 	SourceUsageOnly         Source = "usageOnly"
+	SourceUpstream          Source = "upstream"
 )
 
 // Units used by Quota.Unit. A site may also report a custom currency symbol.
@@ -43,6 +44,8 @@ const (
 // Quota is one probe result. It is JSON-serializable with stable camelCase
 // names and never contains the API key.
 type Quota struct {
+	Windows         []Window   `json:"windows,omitempty"`
+	Provider        string     `json:"provider,omitempty"`
 	ModelsAvailable bool       `json:"modelsAvailable,omitempty"`
 	Status          Status     `json:"status"`
 	Remaining       *float64   `json:"remaining,omitempty"`
@@ -57,6 +60,15 @@ type Quota struct {
 	FetchedAt time.Time `json:"fetchedAt"`
 	// Error is a short sanitized message; it never holds the key or a response body.
 	Error string `json:"error,omitempty"`
+}
+
+// Window is a reported upstream percentage, separate from a monetary balance.
+type Window struct {
+	Title            string    `json:"title"`
+	UsedPercent      float64   `json:"usedPercent"`
+	RemainingPercent float64   `json:"remainingPercent"`
+	WindowMinutes    int       `json:"windowMinutes,omitempty"`
+	ResetsAt         time.Time `json:"resetsAt,omitzero"`
 }
 
 // UsedFraction returns used/total clamped to 0...1 when both are known, the

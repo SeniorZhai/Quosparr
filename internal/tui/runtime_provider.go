@@ -48,7 +48,7 @@ func readProvider(ctx context.Context, home string, p store.Provider, account Ac
 			return failed
 		}
 		if secret.APIKey != "" && !p.RemoteQuota() {
-			return readBalance(ctx, account.BaseURL, secret.APIKey, lc, now)
+			return readAPIQuota(ctx, account.BaseURL, secret.APIKey, p, lc, now)
 		}
 	}
 	switch p {
@@ -81,7 +81,7 @@ func readProvider(ctx context.Context, home string, p store.Provider, account Ac
 				}
 				base = config.ModelProviders[config.ModelProvider].BaseURL
 			}
-			return readBalance(ctx, base, auth.APIKey(), lc, now)
+			return readAPIQuota(ctx, base, auth.APIKey(), p, lc, now)
 		}
 		if codex.IsTokenExpired(auth.Tokens.AccessToken, now) {
 			return expired
@@ -113,7 +113,7 @@ func readProvider(ctx context.Context, home string, p store.Provider, account Ac
 				if err != nil {
 					return failed
 				}
-				return readBalance(ctx, base, key, lc, now)
+				return readAPIQuota(ctx, base, key, p, lc, now)
 			}
 			data, err = claude.OpenOfficialStore(dir, home, "", env).Load(ctx)
 			if errors.Is(err, claude.ErrNotLoggedIn) {
@@ -262,7 +262,7 @@ func readProvider(ctx context.Context, home string, p store.Provider, account Ac
 	}
 }
 
-func readBalance(ctx context.Context, base, key string, lc l10n.Localizer, now time.Time) providerReading {
+func readAPIQuota(ctx context.Context, base, key string, provider store.Provider, lc l10n.Localizer, now time.Time) providerReading {
 	if base == "" {
 		return providerReading{status: lc.TUI("unavailable")}
 	}
@@ -270,15 +270,15 @@ func readBalance(ctx context.Context, base, key string, lc l10n.Localizer, now t
 	if err != nil {
 		return providerReading{status: lc.Text(l10n.KeyStatusError)}
 	}
-	quota := apiquota.Probe(ctx, client, base, key, now)
-	if meter, ok := runway.APIBalanceMeter(lc, quota); ok {
-		return providerReading{meters: []runway.Meter{meter}}
+	quota := apiquota.ProbeForProvider(ctx, client, base, key, string(provider), now)
+	if meters := runway.APIQuotaMeters(lc, quota, now); len(meters) > 0 {
+		return providerReading{meters: meters}
 	}
 	switch quota.Status {
 	case apiquota.StatusUnauthorized:
 		return providerReading{status: lc.Text(l10n.KeyStatusLogin)}
 	case apiquota.StatusUnsupported:
-		return providerReading{status: lc.TUI("unavailable")}
+		return providerReading{status: lc.TUI("balanceUnsupported")}
 	default:
 		return providerReading{status: lc.Text(l10n.KeyStatusError)}
 	}

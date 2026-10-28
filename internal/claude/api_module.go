@@ -455,7 +455,7 @@ func (m *Module) refreshAPI(ctx context.Context, acc ManagedAccount, force bool)
 		return err
 	}
 	m.throttle().Commit(slot, m.now())
-	q := sanitizeAPIQuota(apiquota.Probe(ctx, doer, acc.API.BaseURL, key, m.now()), key)
+	q := sanitizeAPIQuota(apiquota.ProbeForProvider(ctx, doer, acc.API.BaseURL, key, "claude", m.now()), key)
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -500,6 +500,9 @@ func sanitizeAPIQuota(q apiquota.Quota, key string) apiquota.Quota {
 	}
 	q.Error = strings.ReplaceAll(q.Error, key, "<redacted>")
 	q.Endpoint = strings.ReplaceAll(q.Endpoint, key, "<redacted>")
+	for i := range q.Windows {
+		q.Windows[i].Title = strings.ReplaceAll(q.Windows[i].Title, key, "<redacted>")
+	}
 	if strings.Contains(strings.ToUpper(q.Unit), strings.ToUpper(key)) {
 		q.Unit = ""
 	}
