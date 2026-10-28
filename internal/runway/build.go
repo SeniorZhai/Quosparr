@@ -316,7 +316,7 @@ func (s *Service) sessionsViewLocked(v *CodexView) {
 	}
 }
 
-func moneyJSON(d swiftjson.Decimal) string { return "$" + fmt.Sprintf("%.4f", d.Float64()) }
+func moneyJSON(d swiftjson.Decimal) string { return "$" + fmt.Sprintf("%.2f", d.Float64()) }
 
 func sessionStateText(lc l10n.Localizer, st sessions.State) string {
 	switch st {

@@ -229,7 +229,7 @@ func TestPlainAPIKeyMakesNoChatGPTRequestAnywhere(t *testing.T) {
 	if c.ResetCredits != nil || c.Estimate != nil {
 		t.Error("ChatGPT-only sections were filled")
 	}
-	if c.Cost == nil || c.DisplayedCost == nil || !strings.Contains(c.CostText, "$2.0000") {
+	if c.Cost == nil || c.DisplayedCost == nil || !strings.Contains(c.CostText, "$2.00 ") {
 		t.Errorf("local cost missing: %q", c.CostText)
 	}
 	if c.Heatmap.CalculatedAt.IsZero() || len(c.Heatmap.AllDevices) != 0 {

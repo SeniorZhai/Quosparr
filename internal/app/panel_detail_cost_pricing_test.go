@@ -48,7 +48,7 @@ func TestCostPartialLabelsAndCompleteMissingList(t *testing.T) {
 	if !hasExact(tt, l.PricingRule("modelUnpriced", "model-11", "50")) {
 		t.Fatal("last unpriced model absent")
 	}
-	if !hasExact(tt, "$0.0000") {
+	if !hasExact(tt, "$0.00") {
 		t.Fatalf("free price absent: %q", tt.Texts())
 	}
 	for _, partial := range []bool{false, true} {
@@ -77,8 +77,8 @@ func TestRecentCostPartialIsLocalized(t *testing.T) {
 	value := swiftjson.MustDecimal("1.25")
 	it := sessions.Item{EstimatedUSD: &value, UnpricedTokens: 10}
 	l := l10n.New(l10n.SimplifiedChinese)
-	if !strings.Contains(recentCostLocalized(l, it), l.Pricing("partial")) {
-		t.Fatal("recent partial missing")
+	if got := recentCostLocalized(l, it); got != "$1.25 · "+l.Pricing("partial") {
+		t.Fatalf("recent partial cost = %q", got)
 	}
 	it.EstimatedUSD = nil
 	if recentCostLocalized(l, it) != "—" {

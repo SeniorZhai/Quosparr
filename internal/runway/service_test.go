@@ -24,7 +24,7 @@ func TestFullRefreshFillsEverySection(t *testing.T) {
 	if c.ResetCredits == nil || c.ResetCreditSummary == nil || len(c.CreditDetails) != 1 {
 		t.Error("credits missing")
 	}
-	if c.Cost == nil || c.DisplayedCost == nil || !strings.Contains(c.CostText, "$2.0000") {
+	if c.Cost == nil || c.DisplayedCost == nil || !strings.Contains(c.CostText, "$2.00 ") {
 		t.Errorf("cost: %q", c.CostText)
 	}
 	if c.Estimate == nil {

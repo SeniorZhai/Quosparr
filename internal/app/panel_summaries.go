@@ -322,7 +322,7 @@ func recentCostLocalized(l l10n.Localizer, it sessions.Item) string {
 	if it.EstimatedUSD == nil {
 		return "—"
 	}
-	out := fmt.Sprintf("$%.4f", it.EstimatedUSD.Float64())
+	out := fmt.Sprintf("$%.2f", it.EstimatedUSD.Float64())
 	if it.UnpricedTokens > 0 {
 		out += " · " + l.Pricing("partial")
 	}

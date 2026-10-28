@@ -270,7 +270,7 @@ func TestDisplayCostAndSubtitle(t *testing.T) {
 	s.CalculatedAt = now.Add(-2 * time.Minute)
 	s.Totals.Turns = 7
 	d := DisplayCost(en, s, store.CostRangeCurrent, "", now)
-	if !strings.HasPrefix(d.Text, "$12.5000 ") || !strings.Contains(d.Text, "1.50M") {
+	if !strings.HasPrefix(d.Text, "$12.50 ") || !strings.Contains(d.Text, "1.50M") {
 		t.Errorf("text: %q", d.Text)
 	}
 	if !strings.Contains(d.Subtitle, "7 ") || !strings.Contains(d.Subtitle, "2 minutes ago") {

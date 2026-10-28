@@ -105,7 +105,7 @@ func TestCompactNumberAndMoney(t *testing.T) {
 		}
 	}
 	d, _ := decimal.Parse("1.23456")
-	if got := Money(d); got != "$1.2346" {
+	if got := Money(d); got != "$1.23" {
 		t.Errorf("money: %q", got)
 	}
 }

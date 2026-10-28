@@ -211,7 +211,7 @@ func TestPanelParityRecentCostShowsCurrency(t *testing.T) {
 			recentRow(c, l10n.New(l10n.English), sessions.Item{ID: "fixture", Title: "Synthetic session", EstimatedUSD: &price}, false, true)
 		})
 	}, 368, 100)
-	if !hasExact(tt, "$18.4200") {
+	if !hasExact(tt, "$18.42") {
 		t.Fatalf("recent session cost has no USD currency; texts %q", tt.Texts())
 	}
 }
@@ -259,7 +259,7 @@ func TestPanelParityCostDailyRowsFollowSwiftFormat(t *testing.T) {
 	tt := ui.NewTester(func(c *ui.Context) {
 		ui.Column(c).Fill().Children(func() { costDailyTable(c, l10n.New(l10n.English), s.DailyRows, "Range") })
 	}, 368, 500)
-	for _, want := range []string{"800", "1.25M", "$1.5000", "—", "42"} {
+	for _, want := range []string{"800", "1.25M", "$1.50", "—", "42"} {
 		if !hasExact(tt, want) {
 			t.Fatalf("daily row cell %q missing; texts %q", want, tt.Texts())
 		}

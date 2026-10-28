@@ -195,10 +195,10 @@ func agoText(text string, lang l10n.Language) string {
 	return text + " ago"
 }
 
-// Money formats a cost as "$0.0000" (Swift DurationFormatter.money).
+// Money formats a cost as "$0.00".
 func Money(v decimal.Decimal) string {
 	f, _ := strconv.ParseFloat(v.String(), 64)
-	return "$" + fmt.Sprintf("%.4f", f)
+	return "$" + fmt.Sprintf("%.2f", f)
 }
 
 // RelativePast formats how long ago date was. Without seconds it collapses
