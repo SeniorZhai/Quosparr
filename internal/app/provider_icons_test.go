@@ -13,7 +13,7 @@ import (
 )
 
 func TestProviderIconsPreserveColorAndFollowTheme(t *testing.T) {
-	for _, data := range [][]byte{codexProviderSVG, grokProviderSVG, claudeProviderSVG} {
+	for _, data := range [][]byte{codexProviderSVG, grokProviderSVG, claudeProviderSVG, kimiProviderSVG, deepseekProviderSVG, deepseekMonoProviderSVG, copilotProviderSVG} {
 		svg, err := ui.ParseSVG(data)
 		if err != nil {
 			t.Fatal(err)
@@ -118,15 +118,15 @@ func TestProviderIconPreview(t *testing.T) {
 			theme := applyTheme(c)
 			ui.Column(c).Fill().Padding(20).Gap(16).Background(theme.Background).Children(func() {
 				ui.Row(c).Gap(18).Children(func() {
-					for _, provider := range []store.Provider{store.ProviderCodex, store.ProviderGrok, "unknown"} {
+					for _, provider := range append(store.Providers(), store.Provider("unknown")) {
 						ProviderIcon(c, provider, 48).TextColor(theme.Text)
 					}
 				})
-				ProviderTabs(c.Key("labels"), &selected, false, l.Text(l10n.KeyProviderCodex), l.Text(l10n.KeyProviderGrok))
+				providerTabsOf(c.Key("labels"), []store.Provider{store.ProviderCodex, store.ProviderGrok}, &selected, false, l.Text(l10n.KeyProviderCodex), l.Text(l10n.KeyProviderGrok))
 				ProviderTabs(c.Key("compact"), &selected, false)
-				ProviderTabs(c.Key("disabled"), &selected, true, l.Text(l10n.KeyProviderCodex), l.Text(l10n.KeyProviderGrok))
+				providerTabsOf(c.Key("disabled"), []store.Provider{store.ProviderCodex, store.ProviderGrok}, &selected, true, l.Text(l10n.KeyProviderCodex), l.Text(l10n.KeyProviderGrok))
 			})
-		}, 400, 240)
+		}, 600, 260)
 		tt.SetDark(dark)
 		name := "provider-icons-light.png"
 		if dark {
@@ -140,6 +140,14 @@ func TestProviderIconPreview(t *testing.T) {
 		closeErr := f.Close()
 		if err != nil || closeErr != nil {
 			t.Fatalf("write preview: %v %v", err, closeErr)
+		}
+	}
+}
+
+func TestEverySelectableProviderHasTrayIcon(t *testing.T) {
+	for _, p := range store.Providers() {
+		if trayProviderIcon(p) == nil {
+			t.Errorf("missing tray icon: %s", p)
 		}
 	}
 }

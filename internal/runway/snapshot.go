@@ -43,10 +43,12 @@ type Snapshot struct {
 	// Provider is the platform the panel shows.
 	Provider store.Provider
 
-	Accounts   AccountsView
-	Codex      CodexView
-	Grok       GrokState
-	Claude     ClaudeState
+	Accounts AccountsView
+	Codex    CodexView
+	Grok     GrokState
+	Claude   ClaudeState
+	// Remote is the quota-only reading of Kimi, DeepSeek and Copilot.
+	Remote     map[store.Provider]RemoteQuota
 	ResetToday ResetTodayState
 	Refresh    RefreshView
 	StatusBar  StatusBarView

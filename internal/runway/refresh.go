@@ -386,6 +386,9 @@ func (s *Service) refreshPanelLocal() {
 	case store.ProviderClaude:
 		s.refreshClaudeLocal()
 	default:
+		if p.SelectedProvider.RemoteQuota() {
+			return
+		}
 		if p.ShowsSessionRepairSummary {
 			s.RefreshSessionReport(false)
 		}
@@ -505,6 +508,7 @@ func (s *Service) startFull(policy usage.RefreshPolicy, widgets bool) <-chan str
 				report(c.RefreshLocal(ctx), showsClaude)
 			}
 		}
+		s.refreshWantedRemote()
 		s.refreshNow(ctx, policy, local)
 		cancel()
 		s.finishFull(id)
@@ -975,6 +979,7 @@ func (s *Service) RefreshQuota() <-chan struct{} {
 	if wantsClaude {
 		s.refreshClaude(true)
 	}
+	s.refreshWantedRemote()
 	return s.runAccountScoped(s.refreshQuotaNow)
 }
 

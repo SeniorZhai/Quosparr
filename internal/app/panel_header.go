@@ -38,6 +38,10 @@ func panelHeader(c *ui.Context, a *App, l l10n.Localizer, prefs store.Preference
 			claudeIdentityRow(c, a, l, prefs, snap)
 			return
 		}
+		if prefs.SelectedProvider.RemoteQuota() {
+			remoteIdentityRow(c, l, prefs, snap)
+			return
+		}
 		codexIdentityRow(c, a, l, prefs, snap)
 		if exp := snap.Accounts.Display.SubscriptionExpiresAt; exp != nil {
 			ui.Row(c).Padding(6, 0, 0, 0).Children(func() { expiryBadge(c, l, *exp, time.Now()) })
@@ -52,6 +56,9 @@ func panelBusy(snap runway.Snapshot, grokView bool) bool {
 	if snap.Provider == store.ProviderClaude && snap.Claude.Refreshing {
 		return true
 	}
+	if snap.Provider.RemoteQuota() && snap.Remote[snap.Provider].Refreshing {
+		return true
+	}
 	return snap.Refresh.Refreshing()
 }
 
@@ -62,39 +69,43 @@ func panelBusy(snap runway.Snapshot, grokView bool) bool {
 // monochrome and gray. With no SelectProvider action the tabs stay disabled.
 func providerStrip(c *ui.Context, a *App, l l10n.Localizer, snap runway.Snapshot, providers []store.Provider, cur store.Provider, selectFn func(store.Provider)) {
 	t := c.Theme()
-	ui.Row(c).Gap(6).Padding(10, 0, 0, 0).Children(func() {
-		for _, p := range providers {
-			name := l.Text(providerKey(p))
-			selected := p == cur
-			tab := ui.ButtonBase(c.Key("provider-tab-"+string(p))).Label(name).Disabled(selectFn == nil).
-				Grow(1).Basis(0).Padding(6, 10, 7, 10).Radius(radiusRow).Cursor(ui.CursorPointer)
-			switch {
-			case selected && tab.Hovered():
-				tab.Background(mono(t, 0.10, 0.15))
-			case selected:
-				tab.Background(mono(t, 0.07, 0.11))
-			case tab.Hovered():
-				tab.Background(hoverNeutral(t))
-			}
-			tab.Children(func() {
-				ui.Column(c).Grow(1).Gap(6).AlignItems(ui.Center).Children(func() {
-					ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
-						if selected {
-							ProviderIcon(c, p, 16).TextColor(t.Text)
-							ui.Text(c, name).FontSize(fsCallout).FontWeight(600).SingleLine()
-							return
-						}
-						ProviderMonoIcon(c, p, 16).TextColor(inkTertiary(t))
-						ui.Text(c, name).FontSize(fsCallout).TextColor(inkTertiary(t)).SingleLine()
+	ui.Column(c).Gap(6).Padding(10, 0, 0, 0).Children(func() {
+		for start := 0; start < len(providers); start += 3 {
+			ui.Row(c.Key("provider-row-" + string(providers[start]))).Gap(6).Children(func() {
+				for _, p := range providers[start:min(start+3, len(providers))] {
+					name := l.Text(providerKey(p))
+					selected := p == cur
+					tab := ui.ButtonBase(c.Key("provider-tab-"+string(p))).Label(name).Disabled(selectFn == nil).
+						Grow(1).Basis(0).Padding(6, 10, 7, 10).Radius(radiusRow).Cursor(ui.CursorPointer)
+					switch {
+					case selected && tab.Hovered():
+						tab.Background(mono(t, 0.10, 0.15))
+					case selected:
+						tab.Background(mono(t, 0.07, 0.11))
+					case tab.Hovered():
+						tab.Background(hoverNeutral(t))
+					}
+					tab.Children(func() {
+						ui.Column(c).Grow(1).Gap(6).AlignItems(ui.Center).Children(func() {
+							ui.Row(c).Gap(5).AlignItems(ui.Center).Children(func() {
+								if selected {
+									ProviderIcon(c, p, 16).TextColor(t.Text)
+									ui.Text(c, name).FontSize(fsCallout).FontWeight(600).SingleLine()
+									return
+								}
+								ProviderMonoIcon(c, p, 16).TextColor(inkTertiary(t))
+								ui.Text(c, name).FontSize(fsCallout).TextColor(inkTertiary(t)).SingleLine()
+							})
+							meter, ok := runway.ShortestWindowMeter(providerMeters(snap, p))
+							stripBar(c, meter, ok, selected)
+						})
 					})
-					meter, ok := runway.ShortestWindowMeter(providerMeters(snap, p))
-					stripBar(c, meter, ok, selected)
-				})
+					if tab.Clicked() && selectFn != nil && !selected {
+						a.panelState.detail = ""
+						selectFn(p)
+					}
+				}
 			})
-			if tab.Clicked() && selectFn != nil && !selected {
-				a.panelState.detail = ""
-				selectFn(p)
-			}
 		}
 	})
 }
@@ -106,6 +117,12 @@ func providerMeters(snap runway.Snapshot, p store.Provider) []runway.Meter {
 	case store.ProviderClaude:
 		return snap.Claude.Meters
 	default:
+		if q, ok := snap.Remote[p]; ok && p.RemoteQuota() {
+			return q.Meters
+		}
+		if p.RemoteQuota() {
+			return nil
+		}
 		return snap.Codex.Meters
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -273,6 +274,7 @@ func newRuntime(opts BackgroundOptions) *liveApp {
 		Grok:                bridge,
 		Claude:              cbridge,
 		ResetToday:          reset,
+		RemoteQuotaDir:      filepath.Join(home, store.DataDirName),
 		WidgetRequirements:  widgetRequirements,
 		WidgetSink:          widgets.publish,
 		OnSnapshot:          func(snap runway.Snapshot) { dispatch.publish(snap); widgetUI.publish(snap) },
@@ -393,6 +395,9 @@ func (rt *liveApp) panelActions(s *Settings) PanelActions {
 			}
 		},
 		PanelShown: svc.SetPanelOpen,
+		SaveRemoteKey: func(p store.Provider, secret, region string) error {
+			return svc.SaveRemoteKey(p, secret, region)
+		},
 	}
 	installDetailActions(rt, &actions)
 	installAccountActions(rt, s, &actions)
@@ -400,7 +405,7 @@ func (rt *liveApp) panelActions(s *Settings) PanelActions {
 }
 
 func refreshSection(s *runway.Service, sec runway.Section) {
-	if p := s.Preferences().SelectedProvider; p == store.ProviderGrok || p == store.ProviderClaude {
+	if p := s.Preferences().SelectedProvider; p == store.ProviderGrok || p == store.ProviderClaude || p.RemoteQuota() {
 		switch sec {
 		case runway.SectionQuotaEstimate, runway.SectionSessionRepair:
 			// A queued Codex-only section can outlive a provider switch.

@@ -219,7 +219,7 @@ func (u *settingsUI) accountNotice(f *accountForm, msg string) {
 	if msg == "" || msg == l.Text(l10n.KeyAccountsOAuthCancelled) {
 		return
 	}
-	providers := store.Providers()
+	providers := store.CoreProviders()
 	title := l.Text(providerKey(providers[min(max(f.kind, 0), len(providers)-1)]))
 	u.showNotice(title, msg)
 }

@@ -95,6 +95,10 @@ func panelStatusLines(c *ui.Context, l l10n.Localizer, prefs store.Preferences, 
 		message, failure = snap.Grok.Accounts.Message, snap.Grok.LastError
 	case store.ProviderClaude:
 		message, failure = snap.Claude.Accounts.Message, snap.Claude.LastError
+	default:
+		if prefs.SelectedProvider.RemoteQuota() {
+			message, failure = "", remoteStatusLine(l, snap.Remote[prefs.SelectedProvider])
+		}
 	}
 	if message == "" && failure == "" {
 		return

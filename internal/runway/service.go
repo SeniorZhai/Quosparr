@@ -11,6 +11,7 @@ import (
 	"github.com/licoy/quosparr/internal/estimate"
 	"github.com/licoy/quosparr/internal/export"
 	"github.com/licoy/quosparr/internal/l10n"
+	"github.com/licoy/quosparr/internal/remotequota"
 	"github.com/licoy/quosparr/internal/sessions"
 	"github.com/licoy/quosparr/internal/speed"
 	"github.com/licoy/quosparr/internal/store"
@@ -45,6 +46,9 @@ type Options struct {
 	Grok       GrokProvider
 	Claude     ClaudeProvider
 	ResetToday ResetTodayProvider
+	// RemoteQuotaDir is ~/.quosparr, where Kimi, DeepSeek and Copilot keys live.
+	// Empty disables those fetches.
+	RemoteQuotaDir string
 
 	// WidgetSink receives the widget snapshot when the widget schedule is
 	// due; nil disables widgets. WidgetRequirements is the data the active
@@ -94,10 +98,11 @@ type Service struct {
 	pubSig chan struct{}
 	latest Snapshot
 
-	mu    sync.Mutex
-	seq   uint64
-	prefs store.Preferences
-	lc    l10n.Localizer
+	mu     sync.Mutex
+	seq    uint64
+	prefs  store.Preferences
+	lc     l10n.Localizer
+	remote map[store.Provider]remoteHeld
 
 	// epoch is the account-state generation (Swift accountStateGeneration).
 	// Every result carries the epoch and the account identity it was fetched
@@ -228,8 +233,14 @@ func New(o Options) *Service {
 		widgetSchedule: NewSchedule(),
 		widgetReqs:     o.WidgetRequirements,
 		progress:       usage.ProgressIdle(),
+		remote:         map[store.Provider]remoteHeld{},
 	}
 	s.lc = s.localizer()
+	if keys, err := remotequota.Load(o.RemoteQuotaDir); err == nil {
+		s.remote[store.ProviderKimi] = remoteHeld{Configured: keys.KimiKey != ""}
+		s.remote[store.ProviderDeepSeek] = remoteHeld{Configured: keys.DeepSeekKey != ""}
+		s.remote[store.ProviderCopilot] = remoteHeld{Configured: keys.CopilotToken != ""}
+	}
 	s.progressReports = usage.NewProgressReporter(100*time.Millisecond, s.setProgress)
 	if o.PricingVersion != nil {
 		s.pricingVersion = o.PricingVersion()
@@ -462,11 +473,23 @@ func (s *Service) SetPreferences(p store.Preferences) {
 	old := s.prefs
 	hadGrok := s.quotaWantedLocked(store.ProviderGrok)
 	hadClaude := s.quotaWantedLocked(store.ProviderClaude)
+	hadRemote := map[store.Provider]bool{}
+	for _, provider := range store.Providers() {
+		if provider.RemoteQuota() {
+			hadRemote[provider] = s.quotaWantedLocked(provider)
+		}
+	}
 	s.prefs = p.Clone()
 	s.lc = s.localizer()
 	// A provider shown again fetches its quota now instead of at the next tick.
 	grokBack := !hadGrok && s.quotaWantedLocked(store.ProviderGrok)
 	claudeBack := !hadClaude && s.quotaWantedLocked(store.ProviderClaude)
+	var remoteBack []store.Provider
+	for _, provider := range store.Providers() {
+		if provider.RemoteQuota() && !hadRemote[provider] && s.quotaWantedLocked(provider) {
+			remoteBack = append(remoteBack, provider)
+		}
+	}
 	now := s.now()
 	s.refreshIntervalChangedLocked(now)
 	if old.QuotaEstimateWindowMode != p.QuotaEstimateWindowMode && s.est != nil && s.quota != nil && s.estDaily != nil {
@@ -498,6 +521,9 @@ func (s *Service) SetPreferences(p store.Preferences) {
 	}
 	if claudeBack {
 		s.refreshClaude(false)
+	}
+	for _, provider := range remoteBack {
+		s.refreshRemote(provider)
 	}
 	if p.SelectedProvider == store.ProviderGrok && (rangeChanged && p.ShowsCostSummary || costOn || heatOn || recentOn || speedOn) {
 		s.refreshGrokLocal()

@@ -30,7 +30,7 @@ func TestExportPricingSettingsReview(t *testing.T) {
 				e.s.prefs.Language = lang
 				e.s.applyLocale()
 				var rows []PricingRow
-				for _, provider := range store.Providers() {
+				for _, provider := range store.CoreProviders() {
 					for i := 0; i < 7; i++ {
 						id := fmt.Sprintf("%s-model-%02d", pricingProviderID(provider), i)
 						rows = append(rows, PricingRow{ProviderID: pricingProviderID(provider), ID: id, Name: fmt.Sprintf("%s Model %d", e.s.L().Text(providerKey(provider)), i+1), Input: &in, Output: &out, CacheRead: &cache, Source: "models.dev", Version: "models-dev-example", Available: true})
@@ -57,7 +57,7 @@ func TestExportPricingSettingsReview(t *testing.T) {
 					appearance = "dark"
 				}
 				name := fmt.Sprintf("%s-%dx%d-%s", lang, width, height, appearance)
-				for _, provider := range store.Providers() {
+				for _, provider := range store.CoreProviders() {
 					u.pricingState().switchProvider(provider)
 					tt.Frame()
 					exportReviewPNG(t, tt, filepath.Join(dir, name+"-"+string(provider)+".png"))

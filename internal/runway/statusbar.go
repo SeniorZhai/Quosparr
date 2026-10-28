@@ -14,6 +14,7 @@ var (
 	codexPreferredWindows  = []int{FiveHourMinutes, WeeklyMinutes}
 	grokPreferredWindows   = []int{WeeklyMinutes, MonthlyMinutes}
 	claudePreferredWindows = []int{FiveHourMinutes, WeeklyMinutes}
+	kimiPreferredWindows   = []int{FiveHourMinutes, WeeklyMinutes}
 )
 
 // PrimaryStandardMeter picks the first standard meter matching a preferred
@@ -80,6 +81,8 @@ type StatusInputs struct {
 	Grok GrokState
 	// Claude side. The preferred status window is 5 hours, then 7 days.
 	Claude ClaudeState
+	// Remote is the quota-only providers, keyed by provider.
+	Remote map[store.Provider]RemoteQuota
 	Now    time.Time
 }
 
@@ -111,6 +114,9 @@ func statusTextFor(lc l10n.Localizer, in StatusInputs, p store.Provider) string 
 	case store.ProviderClaude:
 		return ClaudeStatusText(lc, in.Claude, in.Now)
 	default:
+		if p.RemoteQuota() {
+			return remoteStatusText(lc, in.Remote[p], in.Now)
+		}
 		return in.CodexText
 	}
 }
@@ -149,6 +155,12 @@ func metersOf(in StatusInputs, p store.Provider) []Meter {
 	case store.ProviderClaude:
 		return in.Claude.Meters
 	default:
+		if q, ok := in.Remote[p]; ok && p.RemoteQuota() {
+			return q.Meters
+		}
+		if p.RemoteQuota() {
+			return nil
+		}
 		return in.CodexMeters
 	}
 }
@@ -159,7 +171,12 @@ func preferredOf(p store.Provider) []int {
 		return grokPreferredWindows
 	case store.ProviderClaude:
 		return claudePreferredWindows
+	case store.ProviderKimi:
+		return kimiPreferredWindows
 	default:
+		if p.RemoteQuota() {
+			return nil
+		}
 		return codexPreferredWindows
 	}
 }
@@ -170,6 +187,12 @@ func providerStatusKey(p store.Provider) l10n.Key {
 		return l10n.KeyProviderGrok
 	case store.ProviderClaude:
 		return l10n.KeyProviderClaude
+	case store.ProviderKimi:
+		return l10n.KeyProviderKimi
+	case store.ProviderDeepSeek:
+		return l10n.KeyProviderDeepSeek
+	case store.ProviderCopilot:
+		return l10n.KeyProviderCopilot
 	default:
 		return l10n.KeyProviderCodex
 	}

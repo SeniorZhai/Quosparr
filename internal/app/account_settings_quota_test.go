@@ -42,7 +42,7 @@ func quotaAccountFixture(t *testing.T, l l10n.Localizer, now time.Time) (codex.M
 
 func TestSettingsAndPanelAccountsShowCompleteQuota(t *testing.T) {
 	for _, language := range []store.Language{store.LanguageEnglish, store.LanguageSimplifiedChinese, store.LanguageFrench, store.LanguageRussian, store.LanguageJapanese, store.LanguageKorean, store.LanguageTraditionalChinese} {
-		for _, provider := range store.Providers() {
+		for _, provider := range store.CoreProviders() {
 			for _, panel := range []bool{false, true} {
 				t.Run(fmt.Sprintf("%s/%s/panel=%t", language, provider, panel), func(t *testing.T) {
 					l := l10n.ForPreference(string(language), nil)

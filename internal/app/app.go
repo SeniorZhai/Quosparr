@@ -50,6 +50,9 @@ type PanelActions struct {
 	Sessions SessionActions
 	// MCP manages user-scoped MCP declarations without starting servers.
 	MCP MCPActions
+	// SaveRemoteKey stores a Kimi, DeepSeek or Copilot secret and refreshes
+	// that quota. An empty secret clears it. The secret is not kept in the UI.
+	SaveRemoteKey func(store.Provider, string, string) error
 }
 
 // Options configures App.
@@ -501,6 +504,14 @@ func (a *App) OpenSettings() {
 				return rt.pricingActions()
 			}
 			return PricingActions{}
+		},
+		RemoteQuota: func(p store.Provider) runway.RemoteQuota { return a.Snapshot().Remote[p] },
+		SaveRemoteKey: func(p store.Provider, secret, region string) error {
+			fn := a.PanelActions().SaveRemoteKey
+			if fn == nil {
+				return errors.New("remote quota is unavailable")
+			}
+			return fn(p, secret, region)
 		},
 		PanelDisplay: a.panelDisplay,
 	})

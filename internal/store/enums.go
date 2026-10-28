@@ -10,16 +10,35 @@ type Provider string
 
 // Provider values.
 const (
-	ProviderCodex  Provider = "codex"
-	ProviderClaude Provider = "claude"
-	ProviderGrok   Provider = "grok"
+	ProviderCodex    Provider = "codex"
+	ProviderClaude   Provider = "claude"
+	ProviderGrok     Provider = "grok"
+	ProviderKimi     Provider = "kimi"
+	ProviderDeepSeek Provider = "deepseek"
+	ProviderCopilot  Provider = "copilot"
 )
 
+// CoreProviders are the providers with accounts, skills, MCP, sessions and
+// pricing. Quota-only providers stay out of that set.
+func CoreProviders() []Provider { return []Provider{ProviderCodex, ProviderClaude, ProviderGrok} }
+
 // Providers returns every valid Provider, in display order.
-func Providers() []Provider { return []Provider{ProviderCodex, ProviderClaude, ProviderGrok} }
+func Providers() []Provider {
+	return []Provider{ProviderCodex, ProviderClaude, ProviderGrok, ProviderKimi, ProviderDeepSeek, ProviderCopilot}
+}
 
 // Valid reports whether v is a known value.
 func (v Provider) Valid() bool { return slices.Contains(Providers(), v) }
+
+// RemoteQuota reports whether v is a quota-only provider.
+func (v Provider) RemoteQuota() bool {
+	switch v {
+	case ProviderKimi, ProviderDeepSeek, ProviderCopilot:
+		return true
+	default:
+		return false
+	}
+}
 
 // Language is the user's language preference.
 type Language string

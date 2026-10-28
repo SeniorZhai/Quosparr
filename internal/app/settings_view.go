@@ -12,6 +12,7 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 	"github.com/licoy/quosparr/internal/l10n"
+	"github.com/licoy/quosparr/internal/runway"
 	"github.com/licoy/quosparr/internal/store"
 )
 
@@ -55,6 +56,10 @@ type SettingsOptions struct {
 	// MCP returns read and delete operations for global native MCP entries.
 	MCP     func() MCPActions
 	Pricing func() PricingActions
+	// SaveRemoteKey stores one Kimi, DeepSeek or Copilot secret. Nil leaves
+	// those fields disabled. An empty secret clears that provider.
+	SaveRemoteKey func(store.Provider, string, string) error
+	RemoteQuota   func(store.Provider) runway.RemoteQuota
 	// PanelDisplay returns the display used by the main panel.
 	PanelDisplay func() mygo.Display
 }
@@ -132,9 +137,16 @@ const (
 // settingsUI is the state of the settings window's view: which tab, the
 // proxy form being edited, and the dialogs. Preferences live in Settings.
 type settingsUI struct {
-	s    *Settings
-	opts SettingsOptions
-	win  *mygo.Window // nil in tests
+	remoteEditing map[store.Provider]bool
+	kimiKey       string
+	deepseekKey   string
+	copilotToken  string
+	kimiIntl      bool
+	remoteNote    string
+	remoteErr     bool
+	s             *Settings
+	opts          SettingsOptions
+	win           *mygo.Window // nil in tests
 
 	tab      settingsTab
 	accounts *accountForm
@@ -658,6 +670,7 @@ func (u *settingsUI) advancedPage(c *ui.Context) {
 			}
 		})
 	})
+	u.remoteQuotaGroup(c)
 }
 
 // ---- About ----

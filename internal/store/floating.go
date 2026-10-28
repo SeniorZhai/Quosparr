@@ -29,6 +29,8 @@ func (v FloatingStyle) Valid() bool { return slices.Contains(FloatingStyles(), v
 const (
 	MinFloatingOpacity = 40
 	MaxFloatingOpacity = 100
+	// MaxFloatingProviders is how many providers the floating window shows.
+	MaxFloatingProviders = 3
 )
 
 // FloatingOpacityOptions are the opacities the settings UI offers.
@@ -113,7 +115,7 @@ func (f *FloatingWindow) normalize() {
 	if !f.Style.Valid() {
 		f.Style = FloatingStyleCapsule
 	}
-	f.Providers = canonicalProviders(f.Providers, len(Providers()))
+	f.Providers = canonicalProviders(f.Providers, MaxFloatingProviders)
 	if len(f.Providers) == 0 {
 		f.Providers = nil
 	}
@@ -152,7 +154,7 @@ func (f FloatingWindow) HasApp(id string) bool {
 // FloatingSelection is what the floating window shows: the chosen
 // providers, or the main panel's.
 func (p Preferences) FloatingSelection() []Provider {
-	if sel := canonicalProviders(p.FloatingWindow.Providers, len(Providers())); len(sel) > 0 {
+	if sel := canonicalProviders(p.FloatingWindow.Providers, MaxFloatingProviders); len(sel) > 0 {
 		return sel
 	}
 	if p.SelectedProvider.Valid() {

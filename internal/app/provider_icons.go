@@ -23,13 +23,29 @@ var grokProviderSVG []byte
 //go:embed assets/providers/claude-color.svg
 var claudeProviderSVG []byte
 
+//go:embed assets/providers/kimi.svg
+var kimiProviderSVG []byte
+
+//go:embed assets/providers/deepseek-color.svg
+var deepseekProviderSVG []byte
+
+//go:embed assets/providers/deepseek.svg
+var deepseekMonoProviderSVG []byte
+
+//go:embed assets/providers/githubcopilot.svg
+var copilotProviderSVG []byte
+
 var (
 	codexProviderIcon  = ui.MustParseSVG(codexProviderSVG)
 	grokProviderIcon   = ui.MustParseSVG(grokProviderSVG)
 	claudeProviderIcon = ui.MustParseSVG(claudeProviderSVG)
 
-	codexMonoProviderIcon  = ui.MustParseSVG(codexMonoProviderSVG)
-	claudeMonoProviderIcon = ui.MustParseSVG(claudeMonoProviderSVG)
+	codexMonoProviderIcon    = ui.MustParseSVG(codexMonoProviderSVG)
+	claudeMonoProviderIcon   = ui.MustParseSVG(claudeMonoProviderSVG)
+	kimiProviderIcon         = ui.MustParseSVG(kimiProviderSVG)
+	deepseekProviderIcon     = ui.MustParseSVG(deepseekProviderSVG)
+	deepseekMonoProviderIcon = ui.MustParseSVG(deepseekMonoProviderSVG)
+	copilotProviderIcon      = ui.MustParseSVG(copilotProviderSVG)
 )
 
 // ProviderIcon preserves the official logo's colors; monochrome SVGs inherit
@@ -42,6 +58,12 @@ func ProviderIcon(c *ui.Context, provider store.Provider, size float32) ui.Eleme
 		return ui.Image(c, grokProviderIcon).Size(size, size)
 	case store.ProviderClaude:
 		return ui.Image(c, claudeProviderIcon).Size(size, size)
+	case store.ProviderKimi:
+		return ui.Image(c, kimiProviderIcon).Size(size, size)
+	case store.ProviderDeepSeek:
+		return ui.Image(c, deepseekProviderIcon).Size(size, size)
+	case store.ProviderCopilot:
+		return ui.Image(c, copilotProviderIcon).Size(size, size)
 	default:
 		return ui.Icon(c, icPlug).Size(size, size).TextColor(c.Theme().TextMuted)
 	}
@@ -54,6 +76,8 @@ func ProviderMonoIcon(c *ui.Context, provider store.Provider, size float32) ui.E
 		return ui.Image(c, codexMonoProviderIcon).Size(size, size)
 	case store.ProviderClaude:
 		return ui.Image(c, claudeMonoProviderIcon).Size(size, size)
+	case store.ProviderDeepSeek:
+		return ui.Image(c, deepseekMonoProviderIcon).Size(size, size)
 	default:
 		return ProviderIcon(c, provider, size)
 	}

@@ -29,6 +29,9 @@ func panelBody(c *ui.Context, l l10n.Localizer, prefs store.Preferences, snap ru
 	local := grok || claude
 	first := true
 	for _, m := range store.NormalizeModuleOrder(prefs.MainPanelModuleOrder) {
+		if prefs.SelectedProvider.RemoteQuota() && m != store.ModuleQuota {
+			continue
+		}
 		if local && m == store.ModuleResetCredits && snap.Codex.ResetCreditSummary == nil {
 			continue
 		}
@@ -76,6 +79,8 @@ func panelModule(c *ui.Context, l l10n.Localizer, m store.Module, prefs store.Pr
 	switch m {
 	case store.ModuleQuota:
 		switch {
+		case prefs.SelectedProvider.RemoteQuota():
+			panelRemoteQuota(c, l, prefs, snap, acts, first, state, state.resetSwitch(prefs.QuotaResetTimeFormat))
 		case claude:
 			panelClaudeQuota(c, l, snap, acts, first, state, state.resetSwitch(prefs.QuotaResetTimeFormat), prefs.AccountPrivacyModeEnabled)
 		case grok:
@@ -126,6 +131,9 @@ func sectionRefreshing(snap runway.Snapshot, section runway.Section) bool {
 	case store.ProviderClaude:
 		return snap.Claude.Refreshing
 	default:
+		if snap.Provider.RemoteQuota() {
+			return snap.Remote[snap.Provider].Refreshing
+		}
 		return snap.Refresh.Has(section)
 	}
 }
