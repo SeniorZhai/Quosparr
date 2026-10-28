@@ -183,7 +183,17 @@ func readProvider(ctx context.Context, home string, p store.Provider, account Ac
 		if err != nil {
 			return failed
 		}
-		if doc.Identity.ExpiresAt != nil && !doc.Identity.ExpiresAt.After(now) || (grok.TokenRefresher{Skew: -1}).NeedsRefresh(doc, now) {
+		accessExpired := doc.Identity.ExpiresAt != nil && !doc.Identity.ExpiresAt.After(now) || (grok.TokenRefresher{Skew: -1}).NeedsRefresh(doc, now)
+		if accessExpired && account.Mode == "imported" {
+			dir := grok.ResolveOfficialHome(os.Getenv("GROK_HOME"), home)
+			if official, err := os.ReadFile(filepath.Join(dir, "auth.json")); err == nil {
+				if current, err := grok.ParseAuthDocument(official); err == nil && current.Identity.HasAccessToken && current.StableID() == doc.StableID() {
+					doc = current
+					accessExpired = doc.Identity.ExpiresAt != nil && !doc.Identity.ExpiresAt.After(now) || (grok.TokenRefresher{Skew: -1}).NeedsRefresh(doc, now)
+				}
+			}
+		}
+		if accessExpired {
 			return expired
 		}
 		token, err := doc.AccessToken()

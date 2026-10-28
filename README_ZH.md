@@ -143,7 +143,7 @@ Linux 需要 GTK3、AppIndicator、支持托盘的桌面，以及可用的 Secre
 
 Codex、Claude 和 Grok 卡片还会按 UTC 日期显示今年 1 月 1 日至今天的本机 Token 连续热力图，下方带月份标尺，并显示今年至今的总量；统计可能跨账号。按 `1` / `2` / `3` 切换与 App 一致的每日、每周和累计模式。窄终端可用 `[` / `]` 每次横向浏览 4 周，按 `0` 回到最新日期。历史数据每 5 分钟刷新一次（配置间隔更长时遵循该间隔），按 `r` 可立即刷新。缺失记录与已记录的零用量分别显示。
 
-私有文件 `~/.quosparr/tui/config.json` 不包含密钥。TUI 凭据副本仅存于 `~/.quosparr/accounts/<tui-id>/auth.json`（目录 `0700`、文件 `0600`；Windows 使用仅当前用户可访问且关闭继承的 protected ACL）。导入只读取桌面 App 当前所选凭据并复制必要字段，不改动桌面 App 或官方登录。TUI 普通运行不刷新 OAuth token，也不修改官方登录；凭据过期时，请重新通过 CLI 登录或重新导入。
+私有文件 `~/.quosparr/tui/config.json` 不包含密钥。TUI 凭据副本仅存于 `~/.quosparr/accounts/<tui-id>/auth.json`（目录 `0700`、文件 `0600`；Windows 使用仅当前用户可访问且关闭继承的 protected ACL）。导入只读取桌面 App 当前所选凭据并复制必要字段，不改动桌面 App 或官方登录。TUI 普通运行不刷新 OAuth token，也不修改官方登录；凭据过期时，请重新通过 CLI 登录或重新导入。 Grok 导入副本过期时，TUI 可只读复用官方 CLI 已为同一账号续期的有效凭据查询额度，不改官方登录或导入副本，也不跟随其他账号。
 
 ## 桌面组件
 

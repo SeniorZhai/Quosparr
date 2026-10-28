@@ -122,6 +122,94 @@ func TestRuntimeRejectsExpiredImportedCredentialsWithoutRefreshing(t *testing.T)
 	}
 }
 
+func TestRuntimeGrokUsesRotatedOfficialTokenOnlyForTheImportedAccount(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	credential := func(user string, expiry time.Time) string {
+		jwt := "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"exp":%d}`, expiry.Unix()))) + ".test"
+		return fmt.Sprintf(`{"https://auth.x.ai::test":{"user_id":%q,"team_id":"fixture-team","key":%q,"expires_at":%q}}`, user, jwt, expiry.Format(time.RFC3339))
+	}
+	for _, tc := range []struct {
+		name, officialUser string
+		expired            bool
+		wantQuota          bool
+		officialState      string
+	}{
+		{"same account refreshed", "fixture-user", false, true, "valid"},
+		{"different official account", "another-user", false, false, "valid"},
+		{"official still expired", "fixture-user", true, false, "valid"},
+		{"official missing", "fixture-user", false, false, "missing"},
+		{"official invalid", "fixture-user", false, false, "invalid"},
+		{"official without token", "fixture-user", false, false, "no token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			home := t.TempDir()
+			officialDir := filepath.Join(home, "grok")
+			t.Setenv("GROK_HOME", officialDir)
+			imported := credential("fixture-user", now.Add(-time.Minute))
+			account := runtimeCredential(t, home, "grok-tui-", imported)
+			expiry := now.Add(time.Hour)
+			if tc.expired {
+				expiry = now.Add(-time.Second)
+			}
+			official := credential(tc.officialUser, expiry)
+			if tc.officialState == "invalid" {
+				official = "{invalid"
+			} else if tc.officialState == "no token" {
+				official = `{"https://auth.x.ai::test":{"user_id":"fixture-user","team_id":"fixture-team"}}`
+			}
+			if err := os.MkdirAll(officialDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(officialDir, "auth.json")
+			if tc.officialState != "missing" {
+				if err := os.WriteFile(path, []byte(official), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var requests atomic.Int32
+			ctx := runtimeNetwork(t, func(r *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				if !tc.wantQuota {
+					t.Error("unrelated or expired credential made a request")
+				}
+				if strings.Contains(r.URL.Path, "oauth") {
+					t.Error("read-only TUI attempted token refresh")
+				}
+				fresh := "eyJhbGciOiJub25lIn0." + base64.RawURLEncoding.EncodeToString([]byte(fmt.Sprintf(`{"exp":%d}`, expiry.Unix()))) + ".test"
+				if r.Header.Get("Authorization") != "Bearer "+fresh {
+					t.Error("quota did not use the rotated token")
+				}
+				body, code := `{"config":{"creditUsagePercent":25,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY"}}}`, 200
+				if r.URL.Host == "grok.com" || strings.HasSuffix(r.URL.Path, "/settings") {
+					body, code = "", 204
+				}
+				return &http.Response{StatusCode: code, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+			})
+			lc := l10n.New(l10n.English)
+			reading := readProvider(ctx, home, store.ProviderGrok, account, lc, now)
+			if tc.wantQuota {
+				if requests.Load() == 0 || len(reading.meters) != 1 || reading.meters[0].RemainingPercent != 75 {
+					t.Fatalf("rotated official login was rejected: meters=%+v status=%q", reading.meters, reading.status)
+				}
+			} else if requests.Load() != 0 || reading.status != fmt.Sprintf(lc.TUI("expiredImported"), "grok login --oauth") {
+				t.Fatalf("expired imported status=%q requests=%d", reading.status, requests.Load())
+			}
+			got, err := ReadCredential(home, account)
+			if err != nil || string(got) != imported {
+				t.Fatal("reading changed the imported credential")
+			}
+			got, err = os.ReadFile(path)
+			if tc.officialState == "missing" {
+				if !os.IsNotExist(err) {
+					t.Fatal("reading restored missing official credentials")
+				}
+			} else if err != nil || string(got) != official {
+				t.Fatal("reading changed official credentials")
+			}
+		})
+	}
+}
+
 func TestRuntimeUnconfiguredDoesNotReadAppCredentials(t *testing.T) {
 	home := t.TempDir()
 	if err := os.MkdirAll(platform.RunwayDir(home), 0o700); err != nil {
