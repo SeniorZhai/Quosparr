@@ -17,8 +17,24 @@ __pycache__/
 # Promo video workspace
 video/
 
-# Local Claude Code agent definitions
+# Local agent instructions and configuration
+agent.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.github/copilot-instructions.md
+.codex/
 .claude/
+.pi/
+.mimo/
+.mimo-code.json
+
+# Local environment files
+/.env
+/.env.*
+
+# This machine's Claude quota fallback. It stays out of the repository.
+/internal/app/claude_local.go
 
 # Go / mygo
 /build/

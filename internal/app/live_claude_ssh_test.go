@@ -146,3 +146,68 @@ func TestClaudeSSHRetainsLocalStatisticsOnFailure(t *testing.T) {
 		}
 	}
 }
+
+func TestClaudeSSHLocalHooks(t *testing.T) {
+	previousAfter, previousState := claudeAfterSSH, claudeSSHState
+	t.Cleanup(func() { claudeAfterSSH, claudeSSHState = previousAfter, previousState })
+	claudeAfterSSH, claudeSSHState = nil, nil
+	p := store.DefaultPreferences()
+	p.ClaudeSSHHost = "remote-test"
+	g := newClaudeBridge(nil, p, nil)
+	g.sshFetch = func(context.Context, string) (claude.UsageSnapshot, error) {
+		return claude.UsageSnapshot{}, claude.ErrUnauthorized
+	}
+	ctx := context.Background()
+	if err := g.Refresh(ctx, true); !errors.Is(err, claude.ErrUnauthorized) {
+		t.Fatal("nil hook changed the SSH error")
+	}
+	if g.State(time.Now()).Availability != runway.ClaudeReauthRequired {
+		t.Fatal("nil hook changed the SSH state")
+	}
+	calls := 0
+	claudeAfterSSH = func(got *claudeBridge, gotCtx context.Context, force bool) {
+		calls++
+		if got != g || gotCtx != ctx || !force {
+			t.Fatal("refresh hook received incorrect arguments")
+		}
+		got.mu.Lock()
+		defer got.mu.Unlock()
+		if !errors.Is(got.sshError, claude.ErrUnauthorized) {
+			t.Fatal("refresh hook ran before SSH completed")
+		}
+	}
+	if err := g.Refresh(ctx, true); !errors.Is(err, claude.ErrUnauthorized) || calls != 1 {
+		t.Fatal("refresh hook was skipped or hid the SSH error")
+	}
+	for _, handled := range []bool{false, true} {
+		stateCalls := 0
+		claudeSSHState = func(got *claudeBridge, local runway.ClaudeState) (runway.ClaudeState, bool) {
+			stateCalls++
+			if got != g || local.RemoteUsage {
+				t.Fatal("state hook did not receive the local state")
+			}
+			return runway.ClaudeState{Availability: runway.ClaudeReady, Plan: "test override"}, handled
+		}
+		st := g.State(time.Now())
+		if stateCalls != 1 {
+			t.Fatal("state hook was not called once")
+		}
+		if handled {
+			if st.Availability != runway.ClaudeReady || st.Plan != "test override" {
+				t.Fatal("handled state override was discarded")
+			}
+		} else if st.Availability != runway.ClaudeReauthRequired || !st.RemoteUsage || st.Plan != "" {
+			t.Fatal("declined state override changed SSH behavior")
+		}
+	}
+	p.ClaudeSSHHost = ""
+	g.setPreferences(p, nil)
+	claudeSSHState = func(*claudeBridge, runway.ClaudeState) (runway.ClaudeState, bool) {
+		t.Fatal("SSH state hook ran with SSH disabled")
+		return runway.ClaudeState{}, false
+	}
+	if err := g.Refresh(ctx, true); err != nil || calls != 1 {
+		t.Fatal("SSH refresh hook ran with SSH disabled")
+	}
+	_ = g.State(time.Now())
+}

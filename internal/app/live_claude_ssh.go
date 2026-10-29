@@ -35,7 +35,17 @@ func (g *claudeBridge) refreshSSH(ctx context.Context, host string, force bool) 
 	return err
 }
 
+// Optional local hooks are assigned only during init; nil preserves SSH behavior.
+// claudeSSHState runs with g.mu held.
+var claudeAfterSSH func(*claudeBridge, context.Context, bool)
+var claudeSSHState func(*claudeBridge, runway.ClaudeState) (runway.ClaudeState, bool)
+
 func (g *claudeBridge) remoteStateLocked(local runway.ClaudeState) runway.ClaudeState {
+	if claudeSSHState != nil {
+		if st, ok := claudeSSHState(g, local); ok {
+			return st
+		}
+	}
 	st := runway.ClaudeState{
 		RemoteUsage: true, Availability: runway.ClaudeLoading,
 		Accounts: local.Accounts, AccountQuotas: local.AccountQuotas,

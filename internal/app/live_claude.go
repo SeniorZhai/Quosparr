@@ -86,7 +86,11 @@ func (g *claudeBridge) Refresh(ctx context.Context, force bool) error {
 	host := g.prefs.ClaudeSSHHost
 	g.mu.Unlock()
 	if host != "" {
-		return g.refreshSSH(ctx, host, force)
+		err := g.refreshSSH(ctx, host, force)
+		if claudeAfterSSH != nil {
+			claudeAfterSSH(g, ctx, force)
+		}
+		return err
 	}
 	if g.mod != nil && g.mod.Store != nil {
 		// Follow the Claude Code login first: the first run imports it and an
